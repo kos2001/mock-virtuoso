@@ -74,10 +74,10 @@ class Instance(DbObject):
         if name == "transform":
             return [list(self._slot_xy), self._slot_orient]
         if name == "bBox":
-            from mock_virtuoso.db.geometry import transform_bbox
             master = self._slot_master
             if master is NIL:
-                return [list(self._slot_xy), list(self._slot_xy)]
+                return NIL
+            from mock_virtuoso.db.geometry import transform_bbox
             return transform_bbox(master.bbox, self._slot_xy,
                                   self._slot_orient)
         return super().get_prop(name)

@@ -42,6 +42,9 @@ class Design:
         key = (lib, cell, view)
         existing = self._cellviews.get(key)
         if existing is not None:
+            # Update mode and view_type on cache hit (last-open-wins)
+            existing.mode = mode
+            existing.view_type = view_type
             return existing
         cv = CellView(lib, cell, view, view_type, mode)
         self.register(cv)
@@ -52,3 +55,5 @@ class Design:
         key = (cv.get_prop("libName"), cv.get_prop("cellName"),
                cv.get_prop("viewName"))
         self._cellviews.pop(key, None)
+        # Unregister handle so resolving closed cellview raises error
+        self._handles.pop(cv.handle, None)

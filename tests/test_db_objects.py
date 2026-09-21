@@ -79,3 +79,79 @@ def test_open_cellviews_lists_everything_opened():
     design.open_cellview("LIB", "A", "layout", "maskLayout", "w")
     design.open_cellview("LIB", "B", "layout", "maskLayout", "w")
     assert len(design.open_cellviews) == 2
+
+
+# --- Issues from brief code review ---
+
+
+def test_open_cellview_updates_mode_on_cache_hit():
+    """Issue 1: open_cellview silently discards caller's requested mode."""
+    design = Design()
+    a = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "r")
+    assert a.mode == "r"
+    b = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    # Same object (idempotent by identity)
+    assert a is b
+    # But mode updated to last-open-wins
+    assert b.mode == "w"
+
+
+def test_open_cellview_updates_view_type_on_cache_hit():
+    """Issue 1: open_cellview silently discards caller's requested view_type."""
+    design = Design()
+    a = design.open_cellview("LIB", "CELL", "layout", "schematic", "r")
+    assert a.view_type == "schematic"
+    b = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    # Same object (idempotent by identity)
+    assert a is b
+    # But view_type updated to last-open-wins
+    assert b.view_type == "maskLayout"
+
+
+def test_close_cellview_unregisters_handle():
+    """Issue 2: close_cellview leaves stale handles resolvable."""
+    design = Design()
+    cv = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    handle = cv.handle
+    design.close_cellview(cv)
+    # Resolving closed cellview should raise SkillError
+    with pytest.raises(SkillError) as exc_info:
+        design.resolve(handle)
+    assert "stale" in str(exc_info.value).lower()
+
+
+def test_close_and_reopen_cellview_creates_new_object():
+    """Issue 2: close-then-reopen should create new object with new handle."""
+    design = Design()
+    cv1 = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    handle1 = cv1.handle
+    design.close_cellview(cv1)
+    cv2 = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    # New object with new handle
+    assert cv1 is not cv2
+    assert handle1 != cv2.handle
+    # New handle should resolve
+    assert design.resolve(cv2.handle) is cv2
+    # Old handle should raise error
+    with pytest.raises(SkillError):
+        design.resolve(handle1)
+
+
+def test_instance_bbox_nil_when_master_is_nil():
+    """Issue 3: Instance.bBox with NIL master should return NIL, not degenerate box."""
+    inst = Instance("I0", "LIB", "M", "layout", [1.0, 2.0], "R0", None)
+    assert inst.get_prop("bBox") is NIL
+
+
+def test_instance_bbox_composes_with_master():
+    """Issue 3: Instance.bBox should compose with master's bbox."""
+    master = CellView("LIB", "M", "layout", "maskLayout", "r")
+    # Add a shape to master so it has a non-trivial bbox
+    shape = Shape("rect", "met1", "drawing", bbox=[[0.0, 0.0], [1.0, 1.0]])
+    master.shapes.append(shape)
+
+    inst = Instance("I0", "LIB", "M", "layout", [10.0, 20.0], "R0", master)
+    bbox = inst.get_prop("bBox")
+    # Master bbox [[0,0],[1,1]], offset [10,20], orient R0
+    # Should be [[10.0,20.0],[11.0,21.0]]
+    assert bbox == [[10.0, 20.0], [11.0, 21.0]]
