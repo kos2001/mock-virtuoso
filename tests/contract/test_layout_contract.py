@@ -392,6 +392,29 @@ def test_select_then_delete_changes_shape_count(bridge_client):
     assert parse_layout_geometry_output(after.output) == []
 
 
+def test_select_box_on_instance_only_top_cell_reports_nonzero_figures(
+        bridge_client):
+    # geSelectArea historically only looked at cv.shapes, so a top cell
+    # whose only content is placed instances (a hierarchical cell) reported
+    # 0 selected figures even though a real Virtuoso selects the instances
+    # as figures too. This is the bridge-level user-visible symptom.
+    client, session = bridge_client
+    _run(client,
+         layout_bind_current_or_open_cell_view("LIB", "MASTER"),
+         layout_create_rect("met1", "drawing", 0.0, 0.0, 1.0, 1.0))
+    _run(client,
+         layout_bind_current_or_open_cell_view("LIB", "TOP"),
+         layout_create_param_inst("LIB", "MASTER", "layout", "I0",
+                                   0.0, 0.0, "R0"))
+    cv = session.design.find_cellview("LIB", "TOP", "layout")
+    session.open_window(cv)
+
+    select_result = client.execute_skill(
+        layout_select_box((-1.0, -1.0, 2.0, 2.0)))
+    assert select_result.status == ExecutionStatus.SUCCESS
+    assert select_result.output.strip('"') == "selected 1 figure(s)"
+
+
 # -- 그 밖의 편집 경로: 층 표시, 활성 lpp, fit view, shape 목록, 에러 경로 --
 #
 # 각 함수를 별도 테스트로 나눈다: 묶어두면 첫 하위 검사의 실패가 나머지를

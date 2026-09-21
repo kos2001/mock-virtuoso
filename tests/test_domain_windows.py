@@ -273,6 +273,116 @@ def test_ge_open_reuses_an_already_open_matching_cellview(session):
 # --- Final fix wave: hiCloseWindow must unregister the handle (finding 9) -
 
 
+# --- Selection family must treat instances as figures too, alongside
+# shapes: Cadence "figures" include instances, and a hierarchical top
+# cell with only placed instances must be selectable/deletable exactly
+# like a cell full of shapes.
+
+
+def _place_instance(session, cv_var, inst_name, xy, lib="LIB", cell="M"):
+    session.evaluate(
+        f'dbCreateParamInstByMasterName({cv_var} "{lib}" "{cell}" '
+        f'"layout" "{inst_name}" list({xy[0]} {xy[1]}) "R0")')
+
+
+def _make_master(session, lib="LIB", cell="M"):
+    session.evaluate(
+        f'mcv = dbOpenCellViewByType("{lib}" "{cell}" "layout" '
+        '"maskLayout" "w") '
+        'dbCreateRect(mcv list("met1" "drawing") '
+        'list(list(0 0) list(1 1)))')
+
+
+def test_select_area_selects_instances_inside_box(session):
+    _make_master(session)
+    session.evaluate(
+        'cv = dbOpenCellViewByType("LIB" "TOP" "layout" "maskLayout" "w")')
+    _place_instance(session, "cv", "I0", (0, 0))
+    _place_instance(session, "cv", "I1", (100, 100))
+    session.open_window(session.design.find_cellview("LIB", "TOP", "layout"))
+    session.evaluate("geSelectArea(list(list(-1 -1) list(2 2)))")
+    assert session.evaluate("geGetSelSetCount()") == 1
+
+
+def test_select_all_fig_selects_shapes_and_instances(session):
+    _make_master(session)
+    session.evaluate(
+        'cv = dbOpenCellViewByType("LIB" "TOP" "layout" "maskLayout" "w") '
+        'dbCreateRect(cv list("met1" "drawing") list(list(0 0) list(1 1))) '
+        'dbCreateRect(cv list("met1" "drawing") list(list(2 2) list(3 3)))')
+    _place_instance(session, "cv", "I0", (10, 10))
+    _place_instance(session, "cv", "I1", (20, 20))
+    _place_instance(session, "cv", "I2", (30, 30))
+    session.open_window(session.design.find_cellview("LIB", "TOP", "layout"))
+    session.evaluate("geSelectAllFig(nil)")
+    assert session.evaluate("geGetSelSetCount()") == 5
+
+
+def test_deselect_area_over_one_instance_leaves_the_other_selected(session):
+    _make_master(session)
+    session.evaluate(
+        'cv = dbOpenCellViewByType("LIB" "TOP" "layout" "maskLayout" "w")')
+    _place_instance(session, "cv", "I0", (0, 0))
+    _place_instance(session, "cv", "I1", (100, 100))
+    session.open_window(session.design.find_cellview("LIB", "TOP", "layout"))
+    session.evaluate("geSelectArea(list(list(-1 -1) list(101 101)))")
+    assert session.evaluate("geGetSelSetCount()") == 2
+    session.evaluate("geDeselectArea(list(list(-1 -1) list(2 2)))")
+    selected = session.evaluate("geGetSelSet()")
+    assert len(selected) == 1
+    assert selected[0].get_prop("name") == "I1"
+
+
+def test_le_hi_delete_removes_selected_instance_and_leaves_shapes(session):
+    _make_master(session)
+    session.evaluate(
+        'cv = dbOpenCellViewByType("LIB" "TOP" "layout" "maskLayout" "w") '
+        'dbCreateRect(cv list("met1" "drawing") list(list(50 50) list(51 51)))')
+    _place_instance(session, "cv", "I0", (0, 0))
+    session.open_window(session.design.find_cellview("LIB", "TOP", "layout"))
+    session.evaluate("geSelectArea(list(list(-1 -1) list(2 2)))")
+    session.evaluate("leHiDelete()")
+    cv = session.design.find_cellview("LIB", "TOP", "layout")
+    assert cv.instances == []
+    assert len(cv.shapes) == 1
+
+
+def test_le_hi_delete_removes_selected_shape_and_leaves_instances(session):
+    _make_master(session)
+    session.evaluate(
+        'cv = dbOpenCellViewByType("LIB" "TOP" "layout" "maskLayout" "w") '
+        'dbCreateRect(cv list("met1" "drawing") list(list(0 0) list(1 1)))')
+    _place_instance(session, "cv", "I0", (100, 100))
+    session.open_window(session.design.find_cellview("LIB", "TOP", "layout"))
+    session.evaluate("geSelectArea(list(list(-1 -1) list(2 2)))")
+    session.evaluate("leHiDelete()")
+    cv = session.design.find_cellview("LIB", "TOP", "layout")
+    assert cv.shapes == []
+    assert len(cv.instances) == 1
+
+
+def test_masterless_instance_is_skipped_not_selected_or_crashed(session):
+    session.evaluate(
+        'cv = dbOpenCellViewByType("LIB" "TOP" "layout" "maskLayout" "w")')
+    session.evaluate(
+        'dbCreateParamInstByMasterName(cv "LIB" "GONE" "layout" "I0" '
+        'list(0 0) "R0")')
+    # Master "GONE" was never opened/created, so the instance ends up
+    # masterless (bBox NIL) -- exactly the deliberately-allowed case from
+    # the earlier CellView.bbox ruling.
+    session.open_window(session.design.find_cellview("LIB", "TOP", "layout"))
+    # geSelectAllFig selects every figure unconditionally (no bbox test),
+    # so the masterless instance is selected without crashing.
+    session.evaluate("geSelectAllFig(nil)")
+    assert session.evaluate("geGetSelSetCount()") == 1
+    session.evaluate("geDeselectAllFig(nil)")
+    # geSelectArea, however, does test bbox containment -- a masterless
+    # instance has none, so it must be skipped rather than crashing or
+    # being treated as at the origin.
+    session.evaluate("geSelectArea(list(list(-100 -100) list(100 100)))")
+    assert session.evaluate("geGetSelSetCount()") == 0
+
+
 def test_close_window_unregisters_its_handle(session):
     cv = session.evaluate(
         'dbOpenCellViewByType("LIB" "C" "layout" "maskLayout" "w")')

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mock_virtuoso.db.objects import Shape
+from mock_virtuoso.db.objects import Instance, Shape
 from mock_virtuoso.skill.errors import SkillError
 from mock_virtuoso.skill.values import NIL, TRUE, is_truthy
 
@@ -23,10 +23,28 @@ def _split_lpp(text: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
-def _inside(shape: Shape, box) -> bool:
+def _figure_bbox(figure):
+    """도형/인스턴스 공통 bBox 접근. 마스터 없는 인스턴스는 NIL."""
+    if isinstance(figure, Instance):
+        return figure.get_prop("bBox")
+    return figure.bbox
+
+
+def _inside(figure, box) -> bool:
+    fbox = _figure_bbox(figure)
+    if fbox is NIL:
+        # 마스터 없는 인스턴스: 박스가 없으니 "안에 있다"고 판단할 수 없다
+        # -- 원점 취급하지 않고 건너뛴다.
+        return False
     (llx, lly), (urx, ury) = box[0], box[1]
-    (sx0, sy0), (sx1, sy1) = shape.bbox[0], shape.bbox[1]
+    (sx0, sy0), (sx1, sy1) = fbox[0], fbox[1]
     return sx0 >= llx and sy0 >= lly and sx1 <= urx and sy1 <= ury
+
+
+def _figures(cv) -> list:
+    """cv의 모든 figure: shape와 instance 둘 다 -- Cadence Virtuoso에서
+    geSelectArea 등은 도형뿐 아니라 인스턴스도 선택 대상으로 다룬다."""
+    return list(cv.shapes) + list(cv.instances)
 
 
 def install(session) -> None:
@@ -126,9 +144,9 @@ def install(session) -> None:
         if cv is None:
             return NIL
         box = args[0]
-        for shape in cv.shapes:
-            if _inside(shape, box) and shape not in session.selection:
-                session.selection.append(shape)
+        for figure in _figures(cv):
+            if _inside(figure, box) and figure not in session.selection:
+                session.selection.append(figure)
         return TRUE
 
     def ge_add_select_box(it, args, kwargs):
@@ -146,7 +164,7 @@ def install(session) -> None:
     def ge_select_all_fig(it, args, kwargs):
         cv = current_cellview()
         if cv is not None:
-            session.selection = list(cv.shapes)
+            session.selection = _figures(cv)
         return TRUE
 
     def ge_deselect_all_fig(it, args, kwargs):
@@ -157,9 +175,11 @@ def install(session) -> None:
         cv = current_cellview()
         if cv is None:
             return NIL
-        for shape in list(session.selection):
-            if shape in cv.shapes:
-                cv.shapes.remove(shape)
+        for figure in list(session.selection):
+            if figure in cv.shapes:
+                cv.shapes.remove(figure)
+            elif figure in cv.instances:
+                cv.instances.remove(figure)
         session.selection = []
         return TRUE
 
