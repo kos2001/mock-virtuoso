@@ -353,3 +353,69 @@ def test_stop_unblocks_stuck_client(tmp_path):
     # Thread should be dead shortly, well before the 5-second socket timeout
     assert not srv._thread.is_alive(), "Thread should be dead shortly after stop()"
     assert stop_time < 2, f"stop() should return quickly, took {stop_time:.2f}s"
+
+
+def test_stop_does_not_log_spurious_traceback(tmp_path, capfd):
+    """stop() should not log a traceback when closing the in-flight connection."""
+    import time
+    import threading
+
+    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path))
+    srv.start()
+
+    # Open a client connection but don't send EOF
+    client_connected = threading.Event()
+
+    def stuck_client():
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(10)
+                s.connect(("127.0.0.1", srv.port))
+                s.sendall(b'{"skill": "')
+                client_connected.set()
+                s.recv(1)  # Block here
+        except OSError:
+            pass
+
+    thread = threading.Thread(target=stuck_client, daemon=True)
+    thread.start()
+
+    assert client_connected.wait(timeout=2)
+    time.sleep(0.1)
+
+    # Call stop() while client is stuck
+    srv.stop()
+    time.sleep(0.1)
+
+    # Capture stderr output
+    captured = capfd.readouterr()
+
+    # Should NOT contain a traceback (no "Traceback" line, no "OSError")
+    assert "Traceback" not in captured.err, f"Should not log traceback on shutdown, got: {captured.err!r}"
+    assert "Bad file descriptor" not in captured.err, f"Should not log OSError on shutdown, got: {captured.err!r}"
+
+
+def test_genuine_error_still_logs_traceback(tmp_path, capfd):
+    """Genuine internal errors should still log a traceback to stderr."""
+    session = Session(artifact_dir=tmp_path)
+
+    # Register a builtin that raises RuntimeError
+    def builtin_raise_runtime_error(interp, args, kwargs):
+        raise RuntimeError("Genuine internal error")
+
+    session.interp.register("raiseRuntimeError", builtin_raise_runtime_error)
+
+    # Call build_response which will execute the builtin
+    response = build_response(session, "raiseRuntimeError()", 30)
+
+    # Verify response is NAK
+    assert response.startswith(b"\x15")
+    assert b"internal error:" in response
+
+    # Capture stderr - should have traceback
+    captured = capfd.readouterr()
+
+    # SHOULD contain a traceback
+    assert "Traceback" in captured.err, f"Should log traceback for genuine error, got: {captured.err!r}"
+    assert "RuntimeError" in captured.err, f"Should log error type, got: {captured.err!r}"
+    assert "Genuine internal error" in captured.err, f"Should log error message, got: {captured.err!r}"

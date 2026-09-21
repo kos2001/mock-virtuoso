@@ -104,7 +104,9 @@ class MockVirtuosoServer:
                 except Exception as exc:
                     # Broad exception handler: any unforeseen error in the handler
                     # does not kill the accept loop.
-                    traceback.print_exc(file=sys.stderr)
+                    # However, if we are stopping, OSError from closed connection is expected
+                    if not self._stopping.is_set():
+                        traceback.print_exc(file=sys.stderr)
                     # Try to send a NAK if the socket is still usable
                     try:
                         response = NAK + f"internal error: {type(exc).__name__}".encode("utf-8")
