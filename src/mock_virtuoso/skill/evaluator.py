@@ -81,6 +81,8 @@ class Interpreter:
         self._step_budget = step_budget
         self._steps = 0
         self._install_operators()
+        from mock_virtuoso.skill import builtins_core
+        builtins_core.install(self)
 
     # -- 등록 ------------------------------------------------------------
 
@@ -232,9 +234,6 @@ class Interpreter:
                       NIL if is_truthy(args[0]) else TRUE)
         # 점 리터럴 a:b 는 2원소 리스트다.
         self.register(":", lambda it, args, kwargs: [args[0], args[1]])
-        # 리스트 생성자. 이 이밸류에이터 자신의 테스트(foreach)가 의존하는
-        # 언어 핵심 연산이라 도메인 빌트인(Task 5+)과 달리 여기서 설치한다.
-        self.register("list", lambda it, args, kwargs: list(args))
 
 
 def _skill_equal(a: object, b: object) -> bool:
