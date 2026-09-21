@@ -135,3 +135,95 @@ def test_close_window_removes_it(session):
     session.open_window(cv)
     session.evaluate("hiCloseWindow(hiGetCurrentWindow())")
     assert session.evaluate("hiGetWindowList()") == []
+
+
+def test_ge_get_sel_set_returns_the_selected_shape_objects(session):
+    session.evaluate(
+        'cv = dbOpenCellViewByType("LIB" "C" "layout" "maskLayout" "w") '
+        'dbCreateRect(cv list("met1" "drawing") list(list(0 0) list(1 1)))')
+    session.open_window(session.design.find_cellview("LIB", "C", "layout"))
+    session.evaluate("geSelectArea(list(list(-1 -1) list(2 2)))")
+    selected = session.evaluate("geGetSelSet()")
+    assert len(selected) == 1
+    assert selected[0].get_prop("objType") == "rect"
+
+
+def test_ge_add_select_box_selects_shapes_inside_the_given_box(session):
+    session.evaluate(
+        'cv = dbOpenCellViewByType("LIB" "C" "layout" "maskLayout" "w") '
+        'dbCreateRect(cv list("met1" "drawing") list(list(0 0) list(1 1))) '
+        'dbCreateRect(cv list("met1" "drawing") list(list(9 9) list(10 10)))')
+    session.open_window(session.design.find_cellview("LIB", "C", "layout"))
+    # 브릿지가 실제로 내보내는 형태: geAddSelectBox(nil bbox) — 첫 인자(윈도우)는
+    # 무시되고 두 번째 인자가 bbox다.
+    session.evaluate("geAddSelectBox(nil list(list(-1 -1) list(2 2)))")
+    selected = session.evaluate("geGetSelSet()")
+    assert len(selected) == 1
+    assert selected[0].get_prop("bBox") == [[0.0, 0.0], [1.0, 1.0]]
+
+
+def test_ge_deselect_area_leaves_only_the_other_shape_selected(session):
+    session.evaluate(
+        'cv = dbOpenCellViewByType("LIB" "C" "layout" "maskLayout" "w") '
+        'dbCreateRect(cv list("met1" "drawing") list(list(0 0) list(1 1))) '
+        'dbCreateRect(cv list("met1" "drawing") list(list(9 9) list(10 10)))')
+    session.open_window(session.design.find_cellview("LIB", "C", "layout"))
+    session.evaluate("geSelectArea(list(list(-1 -1) list(11 11)))")
+    assert session.evaluate("geGetSelSetCount()") == 2
+    session.evaluate("geDeselectArea(list(list(-1 -1) list(2 2)))")
+    selected = session.evaluate("geGetSelSet()")
+    assert len(selected) == 1
+    assert selected[0].get_prop("bBox") == [[9.0, 9.0], [10.0, 10.0]]
+
+
+def test_ge_select_all_fig_selects_every_shape_even_with_prior_selection(session):
+    session.evaluate(
+        'cv = dbOpenCellViewByType("LIB" "C" "layout" "maskLayout" "w") '
+        'dbCreateRect(cv list("met1" "drawing") list(list(0 0) list(1 1))) '
+        'dbCreateRect(cv list("met1" "drawing") list(list(9 9) list(10 10)))')
+    session.open_window(session.design.find_cellview("LIB", "C", "layout"))
+    session.evaluate("geSelectArea(list(list(-1 -1) list(2 2)))")
+    assert session.evaluate("geGetSelSetCount()") == 1
+    session.evaluate("geSelectAllFig(nil)")
+    cv = session.design.find_cellview("LIB", "C", "layout")
+    assert session.evaluate("geGetSelSetCount()") == len(cv.shapes) == 2
+
+
+def test_hi_get_ci_window_before_and_after_open(session):
+    assert session.evaluate("hiGetCIWindow()") is NIL
+    cv = session.evaluate(
+        'dbOpenCellViewByType("LIB" "C" "layout" "maskLayout" "w")')
+    session.open_window(cv)
+    assert (session.evaluate("hiGetCIWindow()")
+            is session.evaluate("hiGetCurrentWindow()"))
+
+
+def test_hi_raise_window_makes_it_current_without_changing_window_count(session):
+    cv1 = session.evaluate(
+        'dbOpenCellViewByType("LIB" "C1" "layout" "maskLayout" "w")')
+    w1 = session.open_window(cv1)
+    cv2 = session.evaluate(
+        'dbOpenCellViewByType("LIB" "C2" "layout" "maskLayout" "w")')
+    session.open_window(cv2)
+    assert len(session.evaluate("hiGetWindowList()")) == 2
+    session.evaluate(f"hiRaiseWindow({w1.handle})")
+    assert session.evaluate("hiGetCurrentWindow()") is w1
+    assert len(session.evaluate("hiGetWindowList()")) == 2
+
+
+def test_pte_set_all_visible_makes_every_entry_visible(session):
+    session.evaluate('pteSetVisible("met1 drawing" nil "Layers")')
+    session.evaluate('pteSetVisible("met2 drawing" t "Layers")')
+    session.evaluate('pteSetAllVisible(?mode "All" ?panel "Layers")')
+    assert session.palette[("met1", "drawing")] is True
+    assert session.palette[("met2", "drawing")] is True
+    assert all(v is True for v in session.palette.values())
+
+
+def test_ge_open_and_net_mark_stubs_return_t(session):
+    # geOpen/leMarkNet/leHiUnmarkNet은 관찰 가능한 부수효과가 없는
+    # accept-and-return-TRUE 스텁이다. t를 반환하는지만 확인한다 — 이 얇음은
+    # 의도한 것이다.
+    assert session.evaluate('geOpen("LIB" "C" "layout" "a")') is TRUE
+    assert session.evaluate('leMarkNet(nil "net1")') is TRUE
+    assert session.evaluate('leHiUnmarkNet(nil "net1")') is TRUE
