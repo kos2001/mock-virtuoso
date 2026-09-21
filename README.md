@@ -149,6 +149,35 @@ reads geometry back through the bridge's own `parse_layout_geometry_output`.
 Building this UI is what surfaced four further gaps in the mock (positional `if(...)`,
 `stringp`, `ddGetObjReadPath`, and selection ignoring instances) — all fixed.
 
+## Driving it with an agent
+
+`virtuoso-bridge-lite` ships agent skills in its `skills/` directory. Because the bridge
+already supports a **local mode** — tunnel state `mode: "local"` connects straight to
+`127.0.0.1:<port>` with no SSH — the mock can sit exactly where a local Virtuoso would,
+and the CLI, the Python API and those skills all work unmodified.
+
+```bash
+.venv/bin/python demo/agent_sandbox.py --port 65432     # mock + local-mode bridge state
+.venv/bin/virtuoso-bridge status                        # [daemon] OK - connected to Virtuoso CIW
+.venv/bin/virtuoso-bridge eval '1+2'                    # {"status": "success", "output": "3"}
+```
+
+Point an agent at `virtuoso-bridge-lite/skills/virtuoso/SKILL.md` and give it a design
+task. One was asked to build a 2-input NAND standard cell and a three-wide row, told
+only to follow the skill and to verify its work by reading the design back. It did,
+and its output checks out through the CLI:
+
+```
+NAND2 bBox : ((-0.2 0.0) (4.2 4.2))   13 shapes
+             NW×1  AA×2  PO×2 + labels A,B   M1×3 (VDD/VSS rails, Y strap) + labels Y,VDD,VSS
+ROW        : I0 NAND2 R0 ((-0.2 0.0) (4.2 4.2))
+             I1 NAND2 MY ((-0.2 0.0) (4.2 4.2))   <- mirrored, lands back on the same span
+             I2 NAND2 R0 (( 7.8 0.0) (12.2 4.2))
+```
+
+`demo/agent_sandbox.py` removes the tunnel-state file on exit, so the bridge stops
+believing a local Virtuoso is present once you stop the sandbox.
+
 ## Known upstream issues
 
 While building the contract tests (Task 12), we found that
