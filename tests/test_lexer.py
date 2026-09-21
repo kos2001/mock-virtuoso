@@ -71,3 +71,20 @@ def test_comment_to_end_of_line_is_skipped():
 def test_unterminated_string_raises():
     with pytest.raises(ParseError):
         tokenize('"abc')
+
+
+def test_string_token_pos_at_start():
+    """String token pos must point to the opening quote, not past the closing quote."""
+    toks = tokenize('"ab"')
+    assert len(toks) == 1
+    assert toks[0].pos == 0
+
+
+def test_string_token_pos_in_context():
+    """String token in f("ab") should have pos=2 (at the opening quote)."""
+    toks = tokenize('f("ab")')
+    # Tokens: f, (, "ab", )
+    assert len(toks) == 4
+    string_token = toks[2]
+    assert string_token.kind == "string"
+    assert string_token.pos == 2

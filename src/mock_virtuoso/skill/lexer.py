@@ -78,8 +78,9 @@ def tokenize(source: str) -> list[Token]:
             continue
 
         if ch == '"':
+            start = i
             text, i = _read_string(source, i)
-            tokens.append(Token("string", text, i))
+            tokens.append(Token("string", text, start))
             continue
 
         if ch == "(":
