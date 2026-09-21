@@ -116,6 +116,34 @@ two instances of it in a top cell, reads the result back through the bridge's ow
 `parse_layout_geometry_output`, batch-fetches attributes, writes a screenshot, and shows
 out-of-scope SKILL (`mae*`, `sch*`) failing loudly rather than silently succeeding.
 
+## Layout Workbench (web UI)
+
+`webapp/` is a small local application that drives the bridge's client API and draws
+the result — a Cadence-Virtuoso-shaped view of what the mock is doing.
+
+```bash
+uv pip install --python .venv/bin/python -e ../virtuoso-bridge-lite   # test-time only
+.venv/bin/python webapp/app.py            # opens http://127.0.0.1:8808
+```
+
+It starts its own `MockVirtuosoServer`, connects a `VirtuosoClient` to it, and serves:
+
+- a canvas with stippled layer fills, grid, pan/zoom and a live coordinate readout;
+- **hierarchy rendering** — each instance's master geometry is transformed by its
+  `xy`/`orient` and drawn in place, so a mirrored (`MY`) instance visibly flips;
+- an **LSW** listing layers with per-layer figure counts; clicking one toggles
+  visibility and sends a real `pteSetVisible` through the bridge;
+- a **CIW** that logs every bridge call made and accepts raw SKILL at its prompt;
+- a status bar fed by `client.get_current_design()` and `client.list_windows()`.
+
+Every button is a bridge call: `client.layout.edit()`, `client.open_window()`,
+`layout_select_box()`, `client.fetch()`, `client.screenshot()`. The backend is
+stdlib-only and never reaches into `mock_virtuoso` internals for design data — it
+reads geometry back through the bridge's own `parse_layout_geometry_output`.
+
+Building this UI is what surfaced four further gaps in the mock (positional `if(...)`,
+`stringp`, `ddGetObjReadPath`, and selection ignoring instances) — all fixed.
+
 ## Known upstream issues
 
 While building the contract tests (Task 12), we found that
