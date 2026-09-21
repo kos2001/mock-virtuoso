@@ -199,3 +199,56 @@ def test_cellview_bbox_skips_masterless_instances():
     cv.instances.append(orphan)
 
     assert cv.get_prop("bBox") == [[0.0, 0.0], [1.0, 1.0]]
+
+
+# --- Final fix wave: the bBox traversal itself must guard against a
+# cycle (defence in depth for a cycle introduced by any route other
+# than dbCreateParamInstByMasterName/dbCreateInst, e.g. a master
+# assigned directly at the Python level). It must raise SkillError,
+# never let a RecursionError escape.
+
+
+def test_cellview_bbox_self_cycle_raises_skill_error_not_recursion_error(
+        capsys):
+    a = CellView("LIB", "SELFCYCLE", "layout", "maskLayout", "r")
+    inst = Instance("I0", "LIB", "SELFCYCLE", "layout",
+                     [0.0, 0.0], "R0", a)
+    a.instances.append(inst)
+
+    with pytest.raises(SkillError):
+        _ = a.bbox
+    assert capsys.readouterr().err == ""
+
+
+def test_cellview_bbox_mutual_cycle_raises_skill_error_not_recursion_error(
+        capsys):
+    a = CellView("LIB", "MUTA", "layout", "maskLayout", "r")
+    b = CellView("LIB", "MUTB", "layout", "maskLayout", "r")
+    inst_b_in_a = Instance("IB", "LIB", "MUTB", "layout",
+                           [0.0, 0.0], "R0", b)
+    a.instances.append(inst_b_in_a)
+    inst_a_in_b = Instance("IA", "LIB", "MUTA", "layout",
+                           [0.0, 0.0], "R0", a)
+    b.instances.append(inst_a_in_b)
+
+    with pytest.raises(SkillError):
+        _ = a.bbox
+    assert capsys.readouterr().err == ""
+
+
+def test_cellview_bbox_diamond_reuse_of_same_master_is_not_a_false_cycle():
+    """Using the same acyclic master twice under one parent (a diamond,
+    not a cycle) must still compose fine -- the guard must not treat
+    sequential reentry into an already-finished bbox computation as a
+    cycle."""
+    leaf = CellView("LIB", "DLEAF", "layout", "maskLayout", "r")
+    leaf.shapes.append(
+        Shape("rect", "met1", "drawing", bbox=[[0.0, 0.0], [1.0, 1.0]]))
+
+    top = CellView("LIB", "DTOP", "layout", "maskLayout", "r")
+    top.instances.append(
+        Instance("I0", "LIB", "DLEAF", "layout", [0.0, 0.0], "R0", leaf))
+    top.instances.append(
+        Instance("I1", "LIB", "DLEAF", "layout", [10.0, 10.0], "R0", leaf))
+
+    assert top.bbox == [[0.0, 0.0], [11.0, 11.0]]

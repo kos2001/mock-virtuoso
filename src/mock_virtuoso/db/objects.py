@@ -83,6 +83,20 @@ class Instance(DbObject):
         return super().get_prop(name)
 
 
+# Cycle guard for CellView.bbox: identities of cellviews whose bbox
+# composition is currently in progress on this call stack. A second
+# entry for the same cellview while its own computation is still
+# unwound (i.e. an ancestor instantiates itself, directly or through a
+# chain) means a cyclic instance hierarchy, not legitimate recursion --
+# real recursion always finishes and pops before it is reached again.
+# This is defence in depth: the primary guard rejects the cycle at
+# dbCreateParamInstByMasterName/dbCreateInst time (layout.py
+# ``_add_instance``); this one exists so any other route to a cyclic
+# master (e.g. assigning ``master`` directly) fails cleanly instead of
+# blowing the Python recursion stack with a RecursionError.
+_BBOX_IN_PROGRESS: set[int] = set()
+
+
 class CellView(DbObject):
     _SLOTS = ("objType", "libName", "cellName", "viewName", "shapes",
               "instances", "bBox", "cellView")
@@ -111,20 +125,30 @@ class CellView(DbObject):
     @property
     def bbox(self):
         from mock_virtuoso.db.geometry import bbox_of_points
-        corners: list[tuple[float, float]] = []
-        for shape in self._slot_shapes:
-            box = shape.bbox
-            corners.append((box[0][0], box[0][1]))
-            corners.append((box[1][0], box[1][1]))
-        for inst in self._slot_instances:
-            box = inst.get_prop("bBox")
-            if box is NIL:
-                continue
-            corners.append((box[0][0], box[0][1]))
-            corners.append((box[1][0], box[1][1]))
-        if not corners:
-            return [[0.0, 0.0], [0.0, 0.0]]
-        return bbox_of_points(corners)
+        key = id(self)
+        if key in _BBOX_IN_PROGRESS:
+            raise SkillError(
+                "cyclic instance hierarchy: "
+                f"{self._slot_libName}/{self._slot_cellName}/"
+                f"{self._slot_viewName}")
+        _BBOX_IN_PROGRESS.add(key)
+        try:
+            corners: list[tuple[float, float]] = []
+            for shape in self._slot_shapes:
+                box = shape.bbox
+                corners.append((box[0][0], box[0][1]))
+                corners.append((box[1][0], box[1][1]))
+            for inst in self._slot_instances:
+                box = inst.get_prop("bBox")
+                if box is NIL:
+                    continue
+                corners.append((box[0][0], box[0][1]))
+                corners.append((box[1][0], box[1][1]))
+            if not corners:
+                return [[0.0, 0.0], [0.0, 0.0]]
+            return bbox_of_points(corners)
+        finally:
+            _BBOX_IN_PROGRESS.discard(key)
 
     def get_prop(self, name: str) -> object:
         if name == "bBox":

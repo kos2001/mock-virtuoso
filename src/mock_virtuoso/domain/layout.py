@@ -131,8 +131,35 @@ def install(session) -> None:
         cv.shapes.append(shape)
         return shape
 
+    def _reachable_cellviews(start):
+        """All cellviews reachable from ``start`` through instance
+        masters, including ``start`` itself."""
+        visited: set[CellView] = set()
+        stack = [start]
+        while stack:
+            current = stack.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            for inst in current.instances:
+                master = inst.get_prop("master")
+                if isinstance(master, CellView):
+                    stack.append(master)
+        return visited
+
     def _add_instance(cv, lib, cell, view, name, xy, orient):
         master = design.find_cellview(lib, cell, view)
+        # Real Virtuoso refuses cyclic instance hierarchy at
+        # instantiation time: a cellview may not (directly or
+        # transitively) instantiate itself. Without this check, an
+        # accepted cyclic master turns CellView.bbox composition (and
+        # therefore layout_read_geometry/layout_read_summary, both on
+        # the bridge's main read path) into a live RecursionError bomb.
+        if master is not None and cv in _reachable_cellviews(master):
+            raise SkillError(
+                "cyclic instance hierarchy: "
+                f"{cv.get_prop('libName')}/{cv.get_prop('cellName')}/"
+                f"{cv.get_prop('viewName')}")
         inst = Instance(name, lib, cell, view, xy, orient, master)
         design.register(inst)
         cv.instances.append(inst)

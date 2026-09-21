@@ -323,3 +323,72 @@ def test_tech_find_via_def_by_name_returns_the_name(session):
 def test_default_artifact_dir_is_not_cwd():
     s = Session()
     assert s.artifact_dir != Path.cwd()
+
+
+# -- Final fix wave: cyclic instance hierarchy must be rejected at
+# creation time, not blow the Python recursion stack on later ~>bBox
+# reads (finding: CellView.bbox composes through instances now, so an
+# accepted self/mutual master is a live RecursionError bomb on the main
+# read path).
+
+
+def test_self_instantiating_cellview_raises_skill_error_at_creation(
+        session, capsys):
+    with pytest.raises(SkillError) as exc_info:
+        session.evaluate(
+            'cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "w") '
+            'dbCreateParamInstByMasterName(cv "L" "C" "layout" "SELF" '
+            'list(1 1) "R0")')
+    message = str(exc_info.value)
+    assert "cyclic" in message.lower()
+    assert "L/C/layout" in message
+    assert capsys.readouterr().err == ""
+
+
+def test_two_cellview_cycle_raises_skill_error_at_second_creation(
+        session, capsys):
+    session.evaluate(
+        'cvA = dbOpenCellViewByType("L" "A" "layout" "maskLayout" "w") '
+        'cvB = dbOpenCellViewByType("L" "B" "layout" "maskLayout" "w") '
+        'dbCreateParamInstByMasterName(cvA "L" "B" "layout" "I0" '
+        'list(0 0) "R0")')
+    with pytest.raises(SkillError) as exc_info:
+        session.evaluate(
+            'cvB = dbOpenCellViewByType("L" "B" "layout" "maskLayout" "w") '
+            'dbCreateParamInstByMasterName(cvB "L" "A" "layout" "I1" '
+            'list(0 0) "R0")')
+    assert "cyclic" in str(exc_info.value).lower()
+    assert capsys.readouterr().err == ""
+
+
+def test_cellview_still_usable_after_cycle_rejected(session, capsys):
+    session.evaluate(
+        'cv = dbOpenCellViewByType("L" "C2" "layout" "maskLayout" "w") '
+        'dbCreateRect(cv list("met1" "drawing") '
+        'list(list(0 0) list(1 1)))')
+    with pytest.raises(SkillError):
+        session.evaluate(
+            'cv = dbOpenCellViewByType("L" "C2" "layout" "maskLayout" "w") '
+            'dbCreateParamInstByMasterName(cv "L" "C2" "layout" "SELF" '
+            'list(1 1) "R0")')
+    cv = session.design.find_cellview("L", "C2", "layout")
+    assert cv.bbox == [[0.0, 0.0], [1.0, 1.0]]
+    # A read-geometry-style ~>bBox traversal must still work fine.
+    assert cv.get_prop("bBox") == [[0.0, 0.0], [1.0, 1.0]]
+    assert capsys.readouterr().err == ""
+
+
+def test_deep_acyclic_hierarchy_still_composes(session, capsys):
+    session.evaluate(
+        'leaf = dbOpenCellViewByType("L" "LEAF2" "layout" "maskLayout" "w") '
+        'dbCreateRect(leaf list("met1" "drawing") '
+        'list(list(0 0) list(1 1))) '
+        'mid = dbOpenCellViewByType("L" "MID2" "layout" "maskLayout" "w") '
+        'dbCreateParamInstByMasterName(mid "L" "LEAF2" "layout" "I0" '
+        'list(5 5) "R0") '
+        'top = dbOpenCellViewByType("L" "TOP2" "layout" "maskLayout" "w") '
+        'dbCreateParamInstByMasterName(top "L" "MID2" "layout" "J0" '
+        'list(100 100) "R0")')
+    top = session.design.find_cellview("L", "TOP2", "layout")
+    assert top.bbox == [[105.0, 105.0], [106.0, 106.0]]
+    assert capsys.readouterr().err == ""
