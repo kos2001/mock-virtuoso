@@ -51,7 +51,12 @@ def bbox_of_points(points) -> list[list[float]]:
 
 
 def bbox_of_path(points, width: float) -> list[list[float]]:
+    w = float(width)
+    if w < 0.0:
+        raise ValueError(f"negative path width: {w}")
+    if not points:
+        raise ValueError("empty point list")
     box = bbox_of_points(points)
-    half = float(width) / 2.0
+    half = w / 2.0
     return [[box[0][0] - half, box[0][1] - half],
             [box[1][0] + half, box[1][1] + half]]

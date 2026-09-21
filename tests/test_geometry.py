@@ -34,8 +34,21 @@ def test_my_mirrors_about_y_axis():
 
 
 def test_all_orients_supported():
+    # Verify each orientation against known expected results.
+    # Uses (1,0) and (0,1) test points to fully distinguish all eight orientations.
+    expected = {
+        "R0":    {(1.0, 0.0): [1.0, 0.0], (0.0, 1.0): [0.0, 1.0]},
+        "R90":   {(1.0, 0.0): [0.0, 1.0], (0.0, 1.0): [-1.0, 0.0]},
+        "R180":  {(1.0, 0.0): [-1.0, 0.0], (0.0, 1.0): [0.0, -1.0]},
+        "R270":  {(1.0, 0.0): [0.0, -1.0], (0.0, 1.0): [1.0, 0.0]},
+        "MX":    {(1.0, 0.0): [1.0, 0.0], (0.0, 1.0): [0.0, -1.0]},
+        "MY":    {(1.0, 0.0): [-1.0, 0.0], (0.0, 1.0): [0.0, 1.0]},
+        "MXR90": {(1.0, 0.0): [0.0, 1.0], (0.0, 1.0): [1.0, 0.0]},
+        "MYR90": {(1.0, 0.0): [0.0, -1.0], (0.0, 1.0): [-1.0, 0.0]},
+    }
     for orient in ORIENTS:
-        transform_point((1.0, 1.0), (0.0, 0.0), orient)
+        for point, expected_result in expected[orient].items():
+            assert transform_point(point, (0.0, 0.0), orient) == expected_result
 
 
 def test_unknown_orient_raises():
@@ -57,3 +70,27 @@ def test_bbox_of_points():
 def test_bbox_of_path_expands_by_half_width():
     assert bbox_of_path([(0.0, 0.0), (4.0, 0.0)], 2.0) \
         == [[-1.0, -1.0], [5.0, 1.0]]
+
+
+def test_bbox_of_path_negative_width_raises():
+    # Negative path width is meaningless in layout. Raise loudly.
+    with pytest.raises(ValueError):
+        bbox_of_path([(0.0, 0.0), (2.0, 0.0)], -2.0)
+
+
+def test_bbox_of_path_empty_points_raises():
+    # Empty path is malformed input. Raise loudly, not return a plausible box.
+    with pytest.raises(ValueError):
+        bbox_of_path([], 2.0)
+
+
+def test_bbox_of_path_zero_width_is_legal():
+    # Zero width is a degenerate but meaningful centreline.
+    assert bbox_of_path([(0.0, 0.0), (4.0, 0.0)], 0.0) \
+        == [[0.0, 0.0], [4.0, 0.0]]
+
+
+def test_bbox_of_points_empty_returns_zero_box():
+    # Empty shape set is a normal state (e.g., cellview with no shapes yet).
+    # Documents intentional difference from bbox_of_path([]).
+    assert bbox_of_points([]) == [[0.0, 0.0], [0.0, 0.0]]
