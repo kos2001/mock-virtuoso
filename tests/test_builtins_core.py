@@ -82,3 +82,53 @@ def test_atoi_and_atof():
 
 def test_printf_returns_t_and_does_not_crash():
     assert run('printf("hello %d\\n" 1) ') is TRUE
+
+
+# Test fixtures for the three issues found in review
+
+def test_sort_removed_raises_unknown():
+    """sort has been removed and now raises UnknownFunction."""
+    import pytest
+    from mock_virtuoso.skill.errors import UnknownFunction
+    with pytest.raises(UnknownFunction):
+        run('sort(list(9 10 2))')
+
+
+def test_strcat_with_non_string_raises():
+    """strcat should reject non-string arguments."""
+    import pytest
+    from mock_virtuoso.skill.errors import SkillError
+    with pytest.raises(SkillError) as exc_info:
+        run('strcat("a" 1 "b")')
+    assert "int" in str(exc_info.value)  # Should mention the type
+
+
+def test_strcat_string_args_still_works():
+    """strcat with only strings should still work."""
+    assert run('strcat("a" "b" "c")') == "abc"
+
+
+def test_boundp_in_let_scope():
+    """boundp should find variables in the calling environment's scope chain."""
+    assert run('let((x) boundp(\'x))') is TRUE
+
+
+def test_boundp_in_prog_scope():
+    """boundp should find variables in prog local scope."""
+    assert run('prog((cv) boundp(\'cv))') is TRUE
+
+
+def test_boundp_global_unbound():
+    """boundp should return nil for truly unbound names."""
+    assert run('boundp(\'definitelyNotBound)') is NIL
+
+
+def test_boundp_global_bound():
+    """boundp should find globally bound variables."""
+    assert run('x = 1 boundp(\'x)') is TRUE
+
+
+def test_boundp_in_complex_bridge_form():
+    """The real bridge form that uses boundp."""
+    result = run('let((rbCv) rbCv = if(boundp(\'cv) && cv then cv else nil) rbCv)')
+    assert result is NIL  # cv not set, so boundp returns nil

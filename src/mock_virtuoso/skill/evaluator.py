@@ -402,6 +402,20 @@ def _sf_quote(it: Interpreter, node: A.Call, env: Environment) -> object:
     return it.eval_node(target, env)
 
 
+def _sf_boundp(it: Interpreter, node: A.Call, env: Environment) -> object:
+    if not node.args:
+        raise SkillError("boundp requires a symbol")
+    target = node.args[0]
+    if not isinstance(target, A.Quote):
+        raise SkillError("boundp requires a quoted symbol")
+    name = target.name
+    try:
+        env.get(name)
+    except SkillError:
+        return NIL
+    return TRUE
+
+
 _SPECIAL_FORMS = {
     "progn": _sf_progn,
     "prog": _sf_prog,
@@ -418,4 +432,5 @@ _SPECIAL_FORMS = {
     "cond": _sf_cond,
     "lambda": _sf_lambda,
     "quote": _sf_quote,
+    "boundp": _sf_boundp,
 }

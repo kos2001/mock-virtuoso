@@ -65,7 +65,10 @@ def install(interp: Interpreter) -> None:
         return TRUE
 
     def strcat(it, args, kwargs):
-        return "".join(a for a in args if isinstance(a, str))
+        for a in args:
+            if not isinstance(a, str):
+                raise SkillError(f"strcat requires string arguments, got {type(a).__name__}")
+        return "".join(args)
 
     def length(it, args, kwargs):
         value = args[0]
@@ -107,20 +110,6 @@ def install(interp: Interpreter) -> None:
                 return items[i:]
         return NIL
 
-    def sort_(it, args, kwargs):
-        items = _as_list(args[0])
-        return sorted(items, key=skill_repr)
-
-    def boundp(it, args, kwargs):
-        name = args[0]
-        if not isinstance(name, Symbol):
-            raise SkillError("boundp needs a symbol")
-        try:
-            it.globals.get(name.name)
-        except SkillError:
-            return NIL
-        return TRUE
-
     def xcoord(it, args, kwargs):
         return _as_list(args[0])[0]
 
@@ -141,7 +130,7 @@ def install(interp: Interpreter) -> None:
         ("sprintf", sprintf), ("printf", printf), ("strcat", strcat),
         ("length", length), ("car", car), ("cadr", cadr), ("cdr", cdr),
         ("nth", nth), ("list", make_list), ("mapcar", mapcar),
-        ("member", member), ("sort", sort_), ("boundp", boundp),
+        ("member", member),
         ("xCoord", xcoord), ("yCoord", ycoord),
         ("atoi", atoi), ("atof", atof), ("csh", csh),
     ):
