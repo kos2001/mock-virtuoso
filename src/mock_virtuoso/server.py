@@ -50,6 +50,8 @@ class MockVirtuosoServer:
         self.port = self._socket.getsockname()[1]
         self._thread: threading.Thread | None = None
         self._stopping = threading.Event()
+        self._current_conn: socket.socket | None = None
+        self._conn_lock = threading.Lock()
 
     # -- 수명 ------------------------------------------------------------
 
@@ -63,6 +65,19 @@ class MockVirtuosoServer:
             self._socket.close()
         except OSError:
             pass
+        # Close any in-flight connection to unblock recv()
+        with self._conn_lock:
+            if self._current_conn is not None:
+                try:
+                    # shutdown() will interrupt recv()
+                    self._current_conn.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+                try:
+                    self._current_conn.close()
+                except OSError:
+                    pass
+                self._current_conn = None
         if self._thread is not None:
             self._thread.join(timeout=2)
 
@@ -82,6 +97,8 @@ class MockVirtuosoServer:
             except OSError:
                 return
             with conn:
+                with self._conn_lock:
+                    self._current_conn = conn
                 try:
                     self._handle(conn)
                 except Exception as exc:
@@ -94,6 +111,10 @@ class MockVirtuosoServer:
                         conn.sendall(response)
                     except OSError:
                         pass
+                finally:
+                    with self._conn_lock:
+                        if self._current_conn is conn:
+                            self._current_conn = None
 
     def _handle(self, conn: socket.socket) -> None:
         # Set a socket timeout so that clients that never send EOF don't wedge the server
