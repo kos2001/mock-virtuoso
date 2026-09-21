@@ -1,5 +1,6 @@
 import json
 import socket
+import time
 
 import pytest
 
@@ -404,6 +405,58 @@ def test_stop_does_not_log_spurious_traceback(tmp_path, capfd):
     # Should NOT contain a traceback (no "Traceback" line, no "OSError")
     assert "Traceback" not in captured.err, f"Should not log traceback on shutdown, got: {captured.err!r}"
     assert "Bad file descriptor" not in captured.err, f"Should not log OSError on shutdown, got: {captured.err!r}"
+
+
+# --- Final fix wave: a client disconnecting before the response is sent
+# must not log a traceback (finding 8). -----------------------------------
+
+
+class _DisconnectedConn:
+    """A stand-in connection whose recv() delivers a well-formed request
+    but whose final sendall() behaves like a peer that vanished between
+    request and response -- the exact race finding 8 describes."""
+
+    def __init__(self, payload: bytes) -> None:
+        self._chunks = [payload, b""]
+        self.sent: list[bytes] = []
+
+    def settimeout(self, value: float) -> None:
+        pass
+
+    def recv(self, _size: int) -> bytes:
+        return self._chunks.pop(0)
+
+    def sendall(self, data: bytes) -> None:
+        self.sent.append(data)
+        raise ConnectionResetError("Connection reset by peer")
+
+
+def test_client_disconnect_before_reading_response_does_not_log_traceback(
+        tmp_path, capfd):
+    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path))
+    conn = _DisconnectedConn(json.dumps({"skill": "1+2"}).encode("utf-8"))
+
+    # _handle() itself must swallow the disconnect, not just _serve()'s
+    # outer wrapper -- the finding is specifically about the unguarded
+    # `conn.sendall(response)` at the end of _handle.
+    srv._handle(conn)
+
+    assert conn.sent == [b"\x023"]
+    captured = capfd.readouterr()
+    assert "Traceback" not in captured.err, (
+        f"benign client disconnect should not log a traceback, got: "
+        f"{captured.err!r}")
+
+    # The server as a whole must still be usable afterwards.
+    with MockVirtuosoServer(Session(artifact_dir=tmp_path)) as live:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(5)
+        s.connect(("127.0.0.1", live.port))
+        s.sendall(json.dumps({"skill": "1+2"}).encode("utf-8"))
+        s.shutdown(socket.SHUT_WR)
+        response = s.recv(65536)
+        s.close()
+        assert response == b"\x023"
 
 
 def test_genuine_error_still_logs_traceback(tmp_path, capfd):

@@ -193,4 +193,10 @@ class MockVirtuosoServer:
             return
 
         response = build_response(self.session, skill, timeout)
-        conn.sendall(response)
+        try:
+            conn.sendall(response)
+        except OSError:
+            # The client disconnected between request and response. This
+            # is a benign, unremarkable event -- not the "genuine
+            # internal error" a traceback should be reserved for.
+            pass
