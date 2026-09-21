@@ -1,0 +1,22 @@
+[project]
+name = "mock-virtuoso"
+version = "0.1.0"
+description = "A test double that speaks the RAMIC bridge protocol and interprets a subset of Cadence SKILL"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+mock-virtuoso = "mock_virtuoso.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mock_virtuoso"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
