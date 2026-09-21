@@ -173,6 +173,40 @@ def test_instance_bbox_composes_through_master(bridge_client):
     assert inst["bbox"] == [(10.0, 20.0), (11.0, 21.0)]
 
 
+def test_two_level_instance_hierarchy_bbox_composes_through_mid_cellview(
+        bridge_client):
+    """Final fix wave, finding 1: a cellview whose only content is
+    instances (MID) must report a real bbox, not a degenerate
+    [[0,0],[0,0]] one — otherwise a TOP-level instance of it composes a
+    plausible-looking but wrong bbox via dbTransformBBox(inst~>master~>bBox
+    inst~>transform).
+
+    LEAF(rect 0,0-1,1) <- MID(I0 @5,5) <- TOP(J0 @100,100)
+    """
+    client, _ = bridge_client
+    _run(client,
+         layout_bind_current_or_open_cell_view("LIB", "LEAF"),
+         layout_create_rect("met1", "drawing", 0.0, 0.0, 1.0, 1.0))
+    _run(client,
+         layout_bind_current_or_open_cell_view("LIB", "MID"),
+         layout_create_param_inst("LIB", "LEAF", "layout", "I0",
+                                   5.0, 5.0, "R0"))
+    _run(client,
+         layout_bind_current_or_open_cell_view("LIB", "TOP"),
+         layout_create_param_inst("LIB", "MID", "layout", "J0",
+                                   100.0, 100.0, "R0"))
+
+    mid_rows = parse_layout_geometry_output(
+        client.execute_skill(layout_read_geometry("LIB", "MID")).output)
+    mid_inst = mid_rows[0]
+    assert mid_inst["bbox"] == [(5.0, 5.0), (6.0, 6.0)]
+
+    top_rows = parse_layout_geometry_output(
+        client.execute_skill(layout_read_geometry("LIB", "TOP")).output)
+    top_inst = top_rows[0]
+    assert top_inst["bbox"] == [(105.0, 105.0), (106.0, 106.0)]
+
+
 # -- 4. db:0x... 핸들이 요청 경계를 넘어 fetch() 패턴으로 해석된다 -----------
 
 

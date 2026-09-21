@@ -116,6 +116,12 @@ class CellView(DbObject):
             box = shape.bbox
             corners.append((box[0][0], box[0][1]))
             corners.append((box[1][0], box[1][1]))
+        for inst in self._slot_instances:
+            box = inst.get_prop("bBox")
+            if box is NIL:
+                continue
+            corners.append((box[0][0], box[0][1]))
+            corners.append((box[1][0], box[1][1]))
         if not corners:
             return [[0.0, 0.0], [0.0, 0.0]]
         return bbox_of_points(corners)

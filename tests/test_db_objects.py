@@ -155,3 +155,47 @@ def test_instance_bbox_composes_with_master():
     # Master bbox [[0,0],[1,1]], offset [10,20], orient R0
     # Should be [[10.0,20.0],[11.0,21.0]]
     assert bbox == [[10.0, 20.0], [11.0, 21.0]]
+
+
+# --- Final fix wave: CellView.bbox must include instances (finding 1) ---
+
+
+def test_cellview_bbox_includes_instances_two_level_hierarchy():
+    """A cellview whose only content is instances must not report a
+    degenerate [[0,0],[0,0]] box: its bbox must compose through the
+    instances' own (master-derived) bboxes.
+
+    LEAF(rect 0,0-1,1) <- MID(I0 @5,5) <- TOP(J0 @100,100)
+    """
+    leaf = CellView("LIB", "LEAF", "layout", "maskLayout", "r")
+    leaf_shape = Shape("rect", "met1", "drawing",
+                        bbox=[[0.0, 0.0], [1.0, 1.0]])
+    leaf.shapes.append(leaf_shape)
+
+    mid = CellView("LIB", "MID", "layout", "maskLayout", "r")
+    i0 = Instance("I0", "LIB", "LEAF", "layout", [5.0, 5.0], "R0", leaf)
+    mid.instances.append(i0)
+
+    # MID's bbox must come from I0's composed bbox, not be degenerate.
+    assert mid.get_prop("bBox") == [[5.0, 5.0], [6.0, 6.0]]
+
+    top = CellView("LIB", "TOP", "layout", "maskLayout", "r")
+    j0 = Instance("J0", "LIB", "MID", "layout", [100.0, 100.0], "R0", mid)
+    top.instances.append(j0)
+
+    # dbTransformBBox(J0~>master~>bBox J0~>transform) equivalent: J0's own
+    # composed bBox should already reflect MID's real (non-degenerate) box.
+    assert j0.get_prop("bBox") == [[105.0, 105.0], [106.0, 106.0]]
+
+
+def test_cellview_bbox_skips_masterless_instances():
+    """A masterless instance returns NIL for bBox (Task 7 ruling); the
+    cellview's own bbox composition must skip it rather than error."""
+    cv = CellView("LIB", "CELL", "layout", "maskLayout", "r")
+    good = Shape("rect", "met1", "drawing", bbox=[[0.0, 0.0], [1.0, 1.0]])
+    cv.shapes.append(good)
+    orphan = Instance("ORPHAN", "LIB", "GONE", "layout",
+                       [50.0, 50.0], "R0", None)
+    cv.instances.append(orphan)
+
+    assert cv.get_prop("bBox") == [[0.0, 0.0], [1.0, 1.0]]
