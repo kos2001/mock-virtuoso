@@ -74,6 +74,32 @@ def test_if_without_else_returns_nil():
     assert run("if(nil then 10)") is NIL
 
 
+def test_if_positional_form_true():
+    assert run('if(t "yes" "no")') == "yes"
+
+
+def test_if_positional_form_false():
+    assert run('if(nil "yes" "no")') == "no"
+
+
+def test_if_positional_form_true_no_else():
+    assert run('if(t "yes")') == "yes"
+
+
+def test_if_positional_form_false_no_else():
+    assert run('if(nil "yes")') is NIL
+
+
+def test_if_keyword_form_still_works_with_multi_form_branches():
+    assert run('if(t then 1 2 3 else 4)') == 3
+    assert run('if(nil then 1 else 4 5 6)') == 6
+
+
+def test_if_positional_form_too_many_forms_raises():
+    with pytest.raises(SkillError):
+        run('if(t "a" "b" "c")')
+
+
 def test_foreach_iterates_and_returns_nil():
     assert run("total = 0 foreach(x list(1 2 3) total = total + x) total") == 6
 
@@ -172,3 +198,40 @@ def test_lambda_is_a_return_boundary():
     result = interp.evaluate_source(
         'prog((a) a = applyOne(lambda((x) return(x + 1)) 5) a + 100)')
     assert result == 106
+
+
+def test_errset_returns_value_on_success():
+    assert run("errset(1 + 2)") == 3
+
+
+def test_errset_returns_nil_on_skill_error():
+    assert run("errset(noSuchFn())") is NIL
+
+
+def test_errset_ignores_optional_second_argument():
+    assert run("errset(1 + 2 t)") == 3
+
+
+def test_errset_does_not_swallow_prog_return():
+    # A return() destined for an enclosing prog must keep unwinding
+    # through errset, not be caught as an error.
+    result = run('prog((cv) errset(return("ERROR")) return("ok"))')
+    assert result == "ERROR"
+
+
+def test_errset_does_not_swallow_step_budget_exceeded():
+    with pytest.raises(StepBudgetExceeded):
+        run("errset(foreach(i list(1 2 3) x = 1))", step_budget=5)
+
+
+def test_errset_does_not_swallow_timeout():
+    import time
+
+    from mock_virtuoso.skill.errors import EvaluationTimeout
+
+    interp = Interpreter()
+    with pytest.raises(EvaluationTimeout):
+        interp.evaluate_source(
+            'errset(foreach(x list(1 2 3 4 5 6 7 8 9 10) x + 1))',
+            deadline=time.monotonic() - 1,
+        )

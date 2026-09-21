@@ -1,7 +1,8 @@
 """토큰 스트림을 AST로 읽는다.
 
 SKILL의 표면 문법은 C 스타일이다. ``f(a b c)``는 호출, 중위 연산자가 있고,
-``if``는 ``then``/``else`` 키워드를 쓰는 특수 형식이다.
+``if``는 두 가지 형식을 다 받는 특수 형식이다: ``then``/``else`` 키워드를
+쓰는 형식과, ``if(cond then-expr [else-expr])`` 위치 기반 형식.
 """
 
 from __future__ import annotations
@@ -187,7 +188,7 @@ class _Reader:
     def _if_body(self) -> A.Node:
         cond = self._assignment()
         if not self._at_ident("then"):
-            raise ParseError("if(...) requires a 'then' keyword")
+            return self._if_body_positional(cond)
         self._next()
 
         then_forms: list[A.Node] = []
@@ -211,6 +212,27 @@ class _Reader:
                 raise ParseError("if(...) has an empty 'else' branch")
             else_node = (else_forms[0] if len(else_forms) == 1
                          else A.Call("progn", else_forms))
+
+        self._expect("rparen")
+        return A.If(cond, then_node, else_node)
+
+    def _if_body_positional(self, cond: A.Node) -> A.Node:
+        """SKILL also allows ``if(cond then-expr [else-expr])`` with no
+        ``then``/``else`` keywords -- exactly one then-expression and at
+        most one optional else-expression, both single forms (no implicit
+        ``progn`` here, unlike the keyword form)."""
+        if self._peek() is not None and self._peek().kind == "rparen":
+            raise ParseError("if(...) requires a then-expression")
+        then_node = self._assignment()
+
+        else_node: A.Node | None = None
+        if not (self._peek() is not None and self._peek().kind == "rparen"):
+            else_node = self._assignment()
+
+        if not (self._peek() is not None and self._peek().kind == "rparen"):
+            raise ParseError(
+                "if(...) accepts at most a condition, a then-expression, "
+                "and an else-expression in positional form")
 
         self._expect("rparen")
         return A.If(cond, then_node, else_node)

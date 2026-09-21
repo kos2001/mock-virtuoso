@@ -62,6 +62,27 @@ def test_if_without_else():
     assert node.else_node is None
 
 
+def test_if_positional_form():
+    node = read_one("if(a b c)")
+    assert isinstance(node, A.If)
+    assert node.cond.name == "a"
+    assert node.then_node.name == "b"
+    assert node.else_node.name == "c"
+
+
+def test_if_positional_form_without_else():
+    node = read_one("if(a b)")
+    assert isinstance(node, A.If)
+    assert node.cond.name == "a"
+    assert node.then_node.name == "b"
+    assert node.else_node is None
+
+
+def test_if_positional_form_with_too_many_forms_raises():
+    with pytest.raises(ParseError):
+        read_all('if(t "a" "b" "c")')
+
+
 def test_assignment_is_a_call_to_setq():
     node = read_one("cv = 3")
     assert isinstance(node, A.Call)
