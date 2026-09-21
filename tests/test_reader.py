@@ -186,3 +186,80 @@ def test_chained_property_assignment():
     assert node.args[1].name == "c"
     assert isinstance(node.args[2], A.Const)
     assert node.args[2].value == 5
+
+
+def test_assignment_in_progn_argument():
+    # progn(cv = 3 foo()) — the first argument must be setq, not Call("=")
+    node = read_one("progn(cv = 3 foo())")
+    assert isinstance(node, A.Call)
+    assert node.name == "progn"
+    # First argument should be setq
+    first_arg = node.args[0]
+    assert isinstance(first_arg, A.Call)
+    assert first_arg.name == "setq"
+    assert isinstance(first_arg.args[0], A.Quote)
+    assert first_arg.args[0].name == "cv"
+    assert isinstance(first_arg.args[1], A.Const)
+    assert first_arg.args[1].value == 3
+
+
+def test_assignment_as_function_argument():
+    # f(x = 5) — the argument must be setq, not Call("=")
+    node = read_one("f(x = 5)")
+    assert isinstance(node, A.Call)
+    assert node.name == "f"
+    arg = node.args[0]
+    assert isinstance(arg, A.Call)
+    assert arg.name == "setq"
+    assert isinstance(arg.args[0], A.Quote)
+    assert arg.args[0].name == "x"
+
+
+def test_assignment_in_if_condition():
+    # if(a = 1 then b) — the condition must be setq
+    node = read_one("if(a = 1 then b)")
+    assert isinstance(node, A.If)
+    cond = node.cond
+    assert isinstance(cond, A.Call)
+    assert cond.name == "setq"
+    assert isinstance(cond.args[0], A.Quote)
+    assert cond.args[0].name == "a"
+
+
+def test_invalid_assignment_in_function_call_raises():
+    # f(1 = 2) — non-assignable left side must still raise
+    with pytest.raises(ParseError):
+        read_one("f(1 = 2)")
+
+
+def test_property_assignment_in_function_call():
+    # f(obj~>slot = 5) — must produce setProp in argument
+    node = read_one("f(obj~>slot = 5)")
+    assert isinstance(node, A.Call)
+    assert node.name == "f"
+    arg = node.args[0]
+    assert isinstance(arg, A.Call)
+    assert arg.name == "setProp"
+    assert len(arg.args) == 3
+    assert isinstance(arg.args[0], A.Var)
+    assert arg.args[0].name == "obj"
+    assert isinstance(arg.args[1], A.Quote)
+    assert arg.args[1].name == "slot"
+
+
+def test_composed_script_shape():
+    # Real path from bridge: progn(cv = let(...) dbCreateRect(...))
+    # The first argument must be setq, not Call("=")
+    source = 'progn(cv = let((r) r) dbCreateRect(cv list("m1")))'
+    node = read_one(source)
+    assert isinstance(node, A.Call)
+    assert node.name == "progn"
+    # First arg is cv = let(...)
+    first_arg = node.args[0]
+    assert isinstance(first_arg, A.Call)
+    assert first_arg.name == "setq"
+    assert isinstance(first_arg.args[0], A.Quote)
+    assert first_arg.args[0].name == "cv"
+    # The value being assigned should be the let call
+    assert isinstance(first_arg.args[1], A.Call)
+    assert first_arg.args[1].name == "let"

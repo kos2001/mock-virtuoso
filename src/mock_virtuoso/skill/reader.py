@@ -12,8 +12,8 @@ from mock_virtuoso.skill.lexer import Token, tokenize
 from mock_virtuoso.skill.values import NIL, TRUE
 
 # 낮은 우선순위부터. 각 단계는 (연산자들, 왼쪽결합) 이다.
+# Note: "=" is handled separately in _assignment() for right-associativity
 _BINARY_LEVELS = (
-    ("=",),
     ("||",),
     ("&&",),
     ("==", "!=", "<", ">", "<=", ">="),
@@ -69,8 +69,8 @@ class _Reader:
 
         a = b = c parses as a = (b = c)
         """
-        # Parse left side without assignment operators (start at level 1)
-        left = self._expression(level=1)
+        # Parse left side without assignment operators (start at level 0)
+        left = self._expression(level=0)
 
         # If next token is =, handle it with right-associativity
         if self._at_op("="):
@@ -148,7 +148,7 @@ class _Reader:
                        and self._peek().kind == "rparen"):
                 if self._peek() is None:
                     raise ParseError("unterminated parenthesised group")
-                items.append(self._expression())
+                items.append(self._assignment())
             self._expect("rparen")
             if len(items) == 1:
                 return items[0]
@@ -178,14 +178,14 @@ class _Reader:
             tok = self._peek()
             if tok.kind == "keyword":
                 self._next()
-                kwargs[tok.text] = self._expression()
+                kwargs[tok.text] = self._assignment()
             else:
-                args.append(self._expression())
+                args.append(self._assignment())
         self._expect("rparen")
         return A.Call(name, args, kwargs)
 
     def _if_body(self) -> A.Node:
-        cond = self._expression()
+        cond = self._assignment()
         if not self._at_ident("then"):
             raise ParseError("if(...) requires a 'then' keyword")
         self._next()
@@ -194,7 +194,7 @@ class _Reader:
         while not (self._at_ident("else")
                    or (self._peek() is not None
                        and self._peek().kind == "rparen")):
-            then_forms.append(self._expression())
+            then_forms.append(self._assignment())
         if not then_forms:
             raise ParseError("if(...) has an empty 'then' branch")
         then_node = (then_forms[0] if len(then_forms) == 1
@@ -206,7 +206,7 @@ class _Reader:
             else_forms: list[A.Node] = []
             while not (self._peek() is not None
                        and self._peek().kind == "rparen"):
-                else_forms.append(self._expression())
+                else_forms.append(self._assignment())
             if not else_forms:
                 raise ParseError("if(...) has an empty 'else' branch")
             else_node = (else_forms[0] if len(else_forms) == 1
