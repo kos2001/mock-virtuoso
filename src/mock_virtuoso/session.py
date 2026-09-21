@@ -6,18 +6,23 @@ import tempfile
 from pathlib import Path
 
 from mock_virtuoso.db.design import Design
+from mock_virtuoso.db.objects import DbObject
 from mock_virtuoso.skill.evaluator import Interpreter
 
 
-class Window:
+class Window(DbObject):
     """열린 Virtuoso 윈도우 하나."""
 
-    __slots__ = ("number", "name", "cellview")
+    _SLOTS = ("cellView", "windowName", "windowNumber")
 
     def __init__(self, number: int, name: str, cellview) -> None:
+        super().__init__()
         self.number = number
         self.name = name
         self.cellview = cellview
+        self._slot_cellView = cellview
+        self._slot_windowName = name
+        self._slot_windowNumber = number
 
 
 class Session:
@@ -43,3 +48,13 @@ class Session:
 
     def evaluate(self, source: str) -> object:
         return self.interp.evaluate_source(source)
+
+    def open_window(self, cellview) -> Window:
+        number = len(self.windows) + 1
+        name = (f"{cellview.get_prop('libName')} "
+                f"{cellview.get_prop('cellName')} "
+                f"{cellview.get_prop('viewName')}")
+        window = Window(number, name, cellview)
+        self.design.register(window)
+        self.windows.append(window)
+        return window

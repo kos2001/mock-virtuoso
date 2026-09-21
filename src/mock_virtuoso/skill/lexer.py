@@ -53,12 +53,24 @@ def _read_string(source: str, i: int) -> tuple[str, int]:
         i += 1
 
 
-def _number_is_sign_here(tokens: list[Token]) -> bool:
-    """직전 토큰이 값이면 '-'는 이항 연산자, 아니면 음수 부호다."""
+def _number_is_sign_here(tokens: list[Token], source: str, i: int) -> bool:
+    """직전 토큰이 값이면 '-'는 이항 연산자, 아니면 음수 부호다.
+
+    예외: 값 바로 다음에 공백을 사이에 두고 숫자가 바로 붙은 '-'가 오면
+    (예: ``list(-1 -1)``의 두 번째 ``-1``), 이항 연산자가 아니라 새 음수
+    리터럴로 본다. 이항 '-'는 보통 양쪽에 공백을 둔다(``a - b``); 공백 없이
+    숫자에 바로 붙은 경우는 인자 목록 안의 별개 음수 값일 가능성이 훨씬
+    높다.
+    """
     if not tokens:
         return False
     last = tokens[-1]
-    return last.kind in ("number", "string", "ident", "handle", "rparen")
+    if last.kind not in ("number", "string", "ident", "handle", "rparen"):
+        return False
+    if (i > 0 and source[i - 1] in " \t\r\n"
+            and i + 1 < len(source) and source[i + 1].isdigit()):
+        return False
+    return True
 
 
 def tokenize(source: str) -> list[Token]:
@@ -118,7 +130,7 @@ def tokenize(source: str) -> list[Token]:
             i = m.end()
             continue
 
-        if ch == "-" and not _number_is_sign_here(tokens):
+        if ch == "-" and not _number_is_sign_here(tokens, source, i):
             m = _NUMBER_RE.match(source, i)
             if m and m.group(0) != "-":
                 tokens.append(Token("number", m.group(0), i))
