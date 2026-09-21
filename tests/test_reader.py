@@ -132,3 +132,57 @@ def test_multiple_top_level_forms():
 def test_trailing_operator_raises():
     with pytest.raises(ParseError):
         read_all("1 +")
+
+
+def test_chained_assignment_is_right_associative():
+    # a = b = c should parse as a = (b = c)
+    node = read_one("a = b = c")
+    assert isinstance(node, A.Call)
+    assert node.name == "setq"
+    assert isinstance(node.args[0], A.Quote)
+    assert node.args[0].name == "a"
+    # The value should be another setq for b = c
+    inner = node.args[1]
+    assert isinstance(inner, A.Call)
+    assert inner.name == "setq"
+    assert isinstance(inner.args[0], A.Quote)
+    assert inner.args[0].name == "b"
+    assert isinstance(inner.args[1], A.Var)
+    assert inner.args[1].name == "c"
+
+
+def test_invalid_assignment_left_side_raises():
+    # Literal numbers cannot be assigned to
+    with pytest.raises(ParseError):
+        read_one("1 = 2")
+
+
+def test_property_assignment():
+    # obj~>slot = 5 should produce Call("setProp", [Var("obj"), Quote("slot"), Const(5)])
+    node = read_one("obj~>slot = 5")
+    assert isinstance(node, A.Call)
+    assert node.name == "setProp"
+    assert len(node.args) == 3
+    assert isinstance(node.args[0], A.Var)
+    assert node.args[0].name == "obj"
+    assert isinstance(node.args[1], A.Quote)
+    assert node.args[1].name == "slot"
+    assert isinstance(node.args[2], A.Const)
+    assert node.args[2].value == 5
+
+
+def test_chained_property_assignment():
+    # a~>b~>c = 5 should produce setProp with target a~>b
+    node = read_one("a~>b~>c = 5")
+    assert isinstance(node, A.Call)
+    assert node.name == "setProp"
+    assert len(node.args) == 3
+    target = node.args[0]
+    assert isinstance(target, A.Prop)
+    assert target.name == "b"
+    assert isinstance(target.target, A.Var)
+    assert target.target.name == "a"
+    assert isinstance(node.args[1], A.Quote)
+    assert node.args[1].name == "c"
+    assert isinstance(node.args[2], A.Const)
+    assert node.args[2].value == 5

@@ -59,10 +59,34 @@ class _Reader:
     def read_all(self) -> list[A.Node]:
         forms: list[A.Node] = []
         while self._peek() is not None:
-            forms.append(self._expression())
+            forms.append(self._assignment())
         return forms
 
     # -- 식 --------------------------------------------------------------
+
+    def _assignment(self) -> A.Node:
+        """Parse assignment with right-associativity.
+
+        a = b = c parses as a = (b = c)
+        """
+        # Parse left side without assignment operators (start at level 1)
+        left = self._expression(level=1)
+
+        # If next token is =, handle it with right-associativity
+        if self._at_op("="):
+            self._next()
+            right = self._assignment()  # Recurse for right-associativity
+
+            # Normalize the assignment
+            if isinstance(left, A.Var):
+                return A.Call("setq", [A.Quote(left.name), right])
+            elif isinstance(left, A.Prop):
+                return A.Call("setProp", [left.target,
+                                          A.Quote(left.name), right])
+            else:
+                raise ParseError("left side of '=' is not assignable")
+
+        return left
 
     def _expression(self, level: int = 0) -> A.Node:
         if level >= len(_BINARY_LEVELS):
@@ -73,17 +97,7 @@ class _Reader:
         while self._at_op(*ops):
             op = self._next().text
             right = self._expression(level + 1)
-            if op == "=":
-                # 대입은 setq 호출로 정규화한다.
-                if isinstance(node, A.Var):
-                    node = A.Call("setq", [A.Quote(node.name), right])
-                elif isinstance(node, A.Prop):
-                    node = A.Call("setProp", [node.target,
-                                              A.Quote(node.name), right])
-                else:
-                    raise ParseError("left side of '=' is not assignable")
-            else:
-                node = A.Call(op, [node, right])
+            node = A.Call(op, [node, right])
         return node
 
     def _unary(self) -> A.Node:
