@@ -28,6 +28,9 @@ class Design:
             raise SkillError(f"stale or unknown object handle: {handle}")
         return obj
 
+    def unregister(self, obj: DbObject) -> None:
+        self._handles.pop(obj.handle, None)
+
     # -- 셀뷰 ------------------------------------------------------------
 
     @property
@@ -56,4 +59,4 @@ class Design:
                cv.get_prop("viewName"))
         self._cellviews.pop(key, None)
         # Unregister handle so resolving closed cellview raises error
-        self._handles.pop(cv.handle, None)
+        self.unregister(cv)

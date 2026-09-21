@@ -30,6 +30,7 @@ from virtuoso_bridge.virtuoso.layout.ops import (  # noqa: E402
     layout_show_only_layers,
 )
 from virtuoso_bridge.virtuoso.layout.reader import parse_layout_geometry_output  # noqa: E402
+from virtuoso_bridge.virtuoso.ops import open_window  # noqa: E402
 
 from mock_virtuoso.server import MockVirtuosoServer  # noqa: E402
 from mock_virtuoso.session import Session  # noqa: E402
@@ -171,6 +172,29 @@ def test_instance_bbox_composes_through_master(bridge_client):
     assert inst["cell"] == "MASTER"
     assert inst["xy"] == (10.0, 20.0)
     assert inst["bbox"] == [(10.0, 20.0), (11.0, 21.0)]
+
+
+def test_open_window_through_skill_actually_opens_a_window(bridge_client):
+    """Final fix wave, finding 2: geOpen was a lying stub that returned
+    t without opening anything. The bridge opens windows entirely over
+    SKILL via open_window()'s geOpen(?lib ... ?cell ... ?view ...
+    ?viewType ... ?mode ...) call; after it succeeds,
+    hiGetCurrentWindow() must be non-nil and name the right cellview."""
+    client, _ = bridge_client
+    result = client.execute_skill(open_window("LIB", "CELL"))
+    assert result.status == ExecutionStatus.SUCCESS
+    assert result.output != "nil"
+
+    current = client.execute_skill("hiGetCurrentWindow()")
+    assert current.status == ExecutionStatus.SUCCESS
+    assert current.output != "nil"
+
+    cv_name = client.execute_skill(
+        "hiGetCurrentWindow()~>cellView~>cellName")
+    assert cv_name.output == '"CELL"'
+    lib_name = client.execute_skill(
+        "hiGetCurrentWindow()~>cellView~>libName")
+    assert lib_name.output == '"LIB"'
 
 
 def test_two_level_instance_hierarchy_bbox_composes_through_mid_cellview(

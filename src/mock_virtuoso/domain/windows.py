@@ -59,6 +59,10 @@ def install(session) -> None:
         window = args[0]
         if window in session.windows:
             session.windows.remove(window)
+        # Mirror Design.close_cellview (Task 7): unregister the window's
+        # own handle so a stale reference fails loudly instead of
+        # resolving to an orphan not in hiGetWindowList().
+        session.design.unregister(window)
         return TRUE
 
     def hi_raise_window(it, args, kwargs):
@@ -87,7 +91,29 @@ def install(session) -> None:
         return cv if cv is not None else NIL
 
     def ge_open(it, args, kwargs):
-        return TRUE
+        # The bridge calls this as geOpen(?lib ... ?cell ... ?view ...
+        # ?viewType ... ?mode ...) from open_window's preamble, which
+        # already reuses an existing matching window via hiRaiseWindow
+        # before ever reaching here. geOpen itself must still behave
+        # correctly if a matching cellview/window already exists (e.g.
+        # called directly, bypassing that preamble): Design.open_cellview
+        # is idempotent per lib/cell/view, so binding to it here naturally
+        # reuses the same cellview rather than fabricating a second one.
+        lib = kwargs.get("lib")
+        cell = kwargs.get("cell")
+        view = kwargs.get("view", "layout")
+        view_type = kwargs.get("viewType", "maskLayout")
+        mode = kwargs.get("mode", "a")
+        if not isinstance(lib, str) or not isinstance(cell, str):
+            raise SkillError("geOpen needs ?lib and ?cell")
+        cv = session.design.open_cellview(lib, cell, view, view_type, mode)
+        for window in session.windows:
+            if window.cellview is cv:
+                if window is not current_window():
+                    session.windows.remove(window)
+                    session.windows.append(window)
+                return window
+        return session.open_window(cv)
 
     def ge_get_sel_set(it, args, kwargs):
         return list(session.selection)

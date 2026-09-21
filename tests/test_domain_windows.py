@@ -1,6 +1,7 @@
 import pytest
 
 from mock_virtuoso.session import Session
+from mock_virtuoso.skill.errors import SkillError
 from mock_virtuoso.skill.values import NIL, TRUE
 
 
@@ -220,10 +221,63 @@ def test_pte_set_all_visible_makes_every_entry_visible(session):
     assert all(v is True for v in session.palette.values())
 
 
-def test_ge_open_and_net_mark_stubs_return_t(session):
-    # geOpen/leMarkNet/leHiUnmarkNet은 관찰 가능한 부수효과가 없는
+def test_le_mark_net_stubs_return_t(session):
+    # leMarkNet/leHiUnmarkNet은 관찰 가능한 부수효과가 없는
     # accept-and-return-TRUE 스텁이다. t를 반환하는지만 확인한다 — 이 얇음은
-    # 의도한 것이다.
-    assert session.evaluate('geOpen("LIB" "C" "layout" "a")') is TRUE
+    # 의도한 것이다. geOpen은 별도로 다룬다 (아래) — 그것은 실제 윈도우를
+    # 여는 부수효과를 갖는다.
     assert session.evaluate('leMarkNet(nil "net1")') is TRUE
     assert session.evaluate('leHiUnmarkNet(nil "net1")') is TRUE
+
+
+# --- Final fix wave: window slot must be named windowNum (finding 3) -----
+
+
+def test_window_slot_is_windownum_not_windownumber(session):
+    cv = session.evaluate(
+        'dbOpenCellViewByType("LIB" "C" "layout" "maskLayout" "w")')
+    session.open_window(cv)
+    assert session.evaluate("hiGetCurrentWindow()~>windowNum") == 1
+    with pytest.raises(SkillError):
+        session.evaluate("hiGetCurrentWindow()~>windowNumber")
+
+
+# --- Final fix wave: geOpen must actually open a window (finding 2) -------
+
+
+def test_ge_open_opens_a_window_over_the_named_cellview(session):
+    result = session.evaluate(
+        'geOpen(?lib "LIB" ?cell "CELL" ?view "layout" '
+        '?viewType "maskLayout" ?mode "a")')
+    assert result is not TRUE
+    assert result is not NIL
+    current = session.evaluate("hiGetCurrentWindow()")
+    assert current is result
+    assert current.get_prop("cellView").get_prop("cellName") == "CELL"
+    assert current.get_prop("cellView").get_prop("libName") == "LIB"
+
+
+def test_ge_open_reuses_an_already_open_matching_cellview(session):
+    first = session.evaluate(
+        'geOpen(?lib "LIB" ?cell "CELL" ?view "layout" '
+        '?viewType "maskLayout" ?mode "a")')
+    second = session.evaluate(
+        'geOpen(?lib "LIB" ?cell "CELL" ?view "layout" '
+        '?viewType "maskLayout" ?mode "a")')
+    # Reopening the same lib/cell/view must bind to the same open
+    # cellview (Design.open_cellview is idempotent by identity), not
+    # fabricate a second one.
+    assert first.get_prop("cellView") is second.get_prop("cellView")
+
+
+# --- Final fix wave: hiCloseWindow must unregister the handle (finding 9) -
+
+
+def test_close_window_unregisters_its_handle(session):
+    cv = session.evaluate(
+        'dbOpenCellViewByType("LIB" "C" "layout" "maskLayout" "w")')
+    window = session.open_window(cv)
+    handle = window.handle
+    session.evaluate(f"hiCloseWindow({handle})")
+    with pytest.raises(SkillError):
+        session.design.resolve(handle)

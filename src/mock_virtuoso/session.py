@@ -13,7 +13,7 @@ from mock_virtuoso.skill.evaluator import Interpreter
 class Window(DbObject):
     """열린 Virtuoso 윈도우 하나."""
 
-    _SLOTS = ("cellView", "windowName", "windowNumber")
+    _SLOTS = ("cellView", "windowName", "windowNum")
 
     def __init__(self, number: int, name: str, cellview) -> None:
         super().__init__()
@@ -22,7 +22,7 @@ class Window(DbObject):
         self.cellview = cellview
         self._slot_cellView = cellview
         self._slot_windowName = name
-        self._slot_windowNumber = number
+        self._slot_windowNum = number
 
 
 class Session:
