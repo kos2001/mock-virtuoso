@@ -3,7 +3,7 @@ import socket
 
 import pytest
 
-from mock_virtuoso.server import MockVirtuosoServer, build_response
+from mock_virtuoso.server import NAK, MockVirtuosoServer, build_response
 from mock_virtuoso.session import Session
 
 
@@ -419,3 +419,146 @@ def test_genuine_error_still_logs_traceback(tmp_path, capfd):
     assert "Traceback" in captured.err, f"Should log traceback for genuine error, got: {captured.err!r}"
     assert "RuntimeError" in captured.err, f"Should log error type, got: {captured.err!r}"
     assert "Genuine internal error" in captured.err, f"Should log error message, got: {captured.err!r}"
+
+
+def test_serve_logs_traceback_for_genuine_handle_error(tmp_path, capfd):
+    """A genuine (non-shutdown) exception that escapes _handle inside _serve()
+    must still be logged, and the accept loop must survive to serve the next
+    client.
+
+    This is the missing half of the round-3 pair: the existing
+    test_genuine_error_still_logs_traceback calls build_response() directly,
+    which has its own unconditional traceback.print_exc and never touches
+    _serve()'s guarded handler at all. That test would pass unchanged even if
+    _serve() suppressed all logging unconditionally. This test forces the
+    error through the real _serve() handler over a live socket, so it fails
+    against a `_serve()` that swallows genuine errors.
+    """
+    import threading
+
+    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path))
+    original_handle = srv._handle
+    calls = {"n": 0}
+    handled_first = threading.Event()
+
+    def flaky_handle(conn):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            handled_first.set()
+            raise RuntimeError("boom from _handle")
+        return original_handle(conn)
+
+    srv._handle = flaky_handle
+
+    with srv:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(5)
+            s.connect(("127.0.0.1", srv.port))
+            s.shutdown(socket.SHUT_WR)
+            chunks = []
+            while True:
+                chunk = s.recv(65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            data = b"".join(chunks)
+
+        assert handled_first.wait(timeout=2)
+        # _serve()'s exception handler tries to notify the client too.
+        assert data.startswith(NAK)
+        assert b"internal error: RuntimeError" in data
+
+        # The accept loop must have survived the genuine error: a normal
+        # request afterward still succeeds.
+        assert request(srv.port, "1+2") == b"\x023"
+
+    captured = capfd.readouterr()
+    assert "Traceback" in captured.err, f"Should log traceback for genuine _serve error, got: {captured.err!r}"
+    assert "RuntimeError" in captured.err
+    assert "boom from _handle" in captured.err
+
+
+def test_stop_wins_toctou_race_between_accept_and_recording_connection(tmp_path):
+    """Force the exact race the review flagged: accept() returns a connection,
+    but the thread is paused (simulating scheduler preemption) before it
+    records that connection under `_conn_lock`. If stop() runs to completion
+    during that window, it must still cause the freshly-accepted connection
+    to be abandoned instead of handled -- otherwise the handler thread blocks
+    in recv() until its own 5s socket timeout and stop()'s join() returns
+    with the thread still alive.
+
+    The interleaving is forced deterministically (not hoped for) by wrapping
+    the listening socket's accept() so it pauses, after returning the real
+    connection, until the test has driven stop() through its critical
+    section (observed via `_stopping` becoming set).
+    """
+    import threading
+    import time
+
+    class _AcceptPauseWrapper:
+        """Delegates to the real listening socket, but pauses inside
+        accept() -- after the real accept() has already returned a
+        connection -- until told to resume. This forces the scheduler
+        interleaving the review described without relying on luck."""
+
+        def __init__(self, sock, accepted_event, resume_event):
+            self._sock = sock
+            self._accepted = accepted_event
+            self._resume = resume_event
+
+        def accept(self):
+            conn, addr = self._sock.accept()
+            self._accepted.set()
+            self._resume.wait(timeout=5)
+            return conn, addr
+
+        def __getattr__(self, name):
+            return getattr(self._sock, name)
+
+    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path))
+    accepted = threading.Event()
+    resume = threading.Event()
+    srv._socket = _AcceptPauseWrapper(srv._socket, accepted, resume)
+    srv.start()
+
+    stop_elapsed = {}
+
+    def call_stop():
+        start = time.monotonic()
+        srv.stop()
+        stop_elapsed["seconds"] = time.monotonic() - start
+
+    # Deliberately do NOT use a `with` block / close the client here: closing
+    # the client socket would itself unblock the server's recv() via EOF,
+    # masking the very bug this test targets. The client stays open (and is
+    # closed explicitly at the end) so the only thing that can unblock the
+    # server-side handler is the fix under test.
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        client.settimeout(5)
+        client.connect(("127.0.0.1", srv.port))
+        assert accepted.wait(timeout=2), "server should have accepted the connection"
+
+        stopper = threading.Thread(target=call_stop, daemon=True)
+        stopper.start()
+
+        # Wait for stop()'s critical section (setting _stopping, atomically
+        # with checking/closing _current_conn) to have run. Since nothing
+        # was recorded yet, this must NOT find/close a current connection;
+        # instead _serve(), once resumed, must notice _stopping itself.
+        assert srv._stopping.wait(timeout=2), "stop() should set the shutdown flag promptly"
+
+        # Now let the paused thread proceed past accept() into the window;
+        # it must abandon the connection instead of calling _handle().
+        resume.set()
+
+        stopper.join(timeout=5)
+
+        srv._thread.join(timeout=2)
+        assert not srv._thread.is_alive(), "handler thread must not survive stop() across the race window"
+        assert stop_elapsed["seconds"] < 2, (
+            f"stop() should return promptly (well under the 5s socket timeout), "
+            f"took {stop_elapsed['seconds']:.2f}s"
+        )
+    finally:
+        client.close()

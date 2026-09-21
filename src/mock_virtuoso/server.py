@@ -60,24 +60,31 @@ class MockVirtuosoServer:
         self._thread.start()
 
     def stop(self) -> None:
-        self._stopping.set()
+        # Setting `_stopping` and taking ownership of `_current_conn` must be
+        # atomic with respect to `_serve()`'s "record the just-accepted
+        # connection, then check `_stopping`" step (see below). Otherwise a
+        # connection accepted in the gap between accept() returning and it
+        # being recorded here would be seen by neither side: stop() would
+        # find no current connection to close, and _serve() would go on to
+        # call _handle() on a connection nobody will ever interrupt.
+        with self._conn_lock:
+            self._stopping.set()
+            conn_to_close = self._current_conn
+            self._current_conn = None
         try:
             self._socket.close()
         except OSError:
             pass
-        # Close any in-flight connection to unblock recv()
-        with self._conn_lock:
-            if self._current_conn is not None:
-                try:
-                    # shutdown() will interrupt recv()
-                    self._current_conn.shutdown(socket.SHUT_RDWR)
-                except OSError:
-                    pass
-                try:
-                    self._current_conn.close()
-                except OSError:
-                    pass
-                self._current_conn = None
+        if conn_to_close is not None:
+            try:
+                # shutdown() will interrupt recv()
+                conn_to_close.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                conn_to_close.close()
+            except OSError:
+                pass
         if self._thread is not None:
             self._thread.join(timeout=2)
 
@@ -96,9 +103,25 @@ class MockVirtuosoServer:
                 conn, _ = self._socket.accept()
             except OSError:
                 return
+
+            # Record the connection and check `_stopping` atomically, under
+            # the same lock `stop()` uses to set `_stopping` and take
+            # ownership of `_current_conn`. This closes the TOCTOU window
+            # between accept() returning and this step: if stop() already
+            # ran (or runs concurrently) it will either see this connection
+            # recorded and close it itself, or -- if it ran first -- we will
+            # see `_stopping` set here and abandon the connection ourselves,
+            # rather than blocking in `_handle()` until the socket timeout.
+            with self._conn_lock:
+                if self._stopping.is_set():
+                    try:
+                        conn.close()
+                    except OSError:
+                        pass
+                    return
+                self._current_conn = conn
+
             with conn:
-                with self._conn_lock:
-                    self._current_conn = conn
                 try:
                     self._handle(conn)
                 except Exception as exc:
