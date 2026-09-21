@@ -31,6 +31,31 @@ def _points(value) -> list[list[float]]:
     return [[p[0], p[1]] for p in value]
 
 
+class DdCellHandle:
+    """A ``ddGetObj`` result: a truthy handle onto a known lib/cell pair.
+
+    Minimal on purpose (finding 7): just enough for the bridge's
+    ``ddcell = ddGetObj(lib cell) if(ddcell then ddDeleteObj(ddcell) ...)``
+    pattern to round-trip honestly. Not registered in Design's handle
+    table -- the bridge never stashes this across a request boundary via
+    a ``db:0x...`` handle.
+    """
+
+    __slots__ = ("lib", "cell", "handle")
+
+    def __init__(self, lib: str, cell: str) -> None:
+        self.lib = lib
+        self.cell = cell
+        self.handle = f"ddcell:{lib}:{cell}"
+
+    def get_prop(self, name: str) -> object:
+        if name == "libName":
+            return self.lib
+        if name == "cellName":
+            return self.cell
+        raise SkillError(f"DdCellHandle has no slot '{name}'")
+
+
 def install(session) -> None:
     design = session.design
     interp = session.interp
@@ -191,14 +216,23 @@ def install(session) -> None:
         return transform_bbox(args[0], offset, orient)
 
     def dd_get_obj(it, args, kwargs):
-        # 라이브러리/셀 존재 확인용. mock은 항상 존재한다고 본다.
-        return TRUE
+        # 라이브러리/셀 존재 확인용. design이 실제로 아는 lib/cell일 때만
+        # truthy 핸들을 낸다 (finding 7: accept-and-lie 금지).
+        lib, cell = args[0], args[1]
+        if not design.cell_exists(lib, cell):
+            return NIL
+        return DdCellHandle(lib, cell)
 
     def dd_get_obj_read_path(it, args, kwargs):
         return str(session.artifact_dir)
 
     def dd_delete_obj(it, args, kwargs):
-        return TRUE
+        ddcell = args[0]
+        if (isinstance(ddcell, DdCellHandle)
+                and design.cell_exists(ddcell.lib, ddcell.cell)):
+            design.forget_cell(ddcell.lib, ddcell.cell)
+            return TRUE
+        return NIL
 
     def tech_get_tech_file(it, args, kwargs):
         return TRUE

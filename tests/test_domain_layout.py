@@ -256,17 +256,57 @@ def test_db_get_cellview_dd_id_returns_the_same_object(session):
     assert result is cv
 
 
-def test_dd_get_obj_returns_true(session):
-    assert session.evaluate('ddGetObj("LIB" "CELL")') == TRUE
+# --- Final fix wave: ddGetObj/ddDeleteObj must accept-and-lie no more
+# (finding 7). The mock's own honesty (Task 10) is the point of this
+# project; a stub that always says a cell exists and always says a
+# delete succeeded defeats that. ------------------------------------
+
+
+def test_dd_get_obj_returns_nil_for_a_cell_the_design_never_opened(session):
+    assert session.evaluate('ddGetObj("LIB" "CELL")') is NIL
+
+
+def test_dd_get_obj_returns_truthy_for_a_cell_the_design_has_opened(session):
+    session.evaluate(
+        'dbOpenCellViewByType("LIB" "CELL" "layout" "maskLayout" "w")')
+    result = session.evaluate('ddGetObj("LIB" "CELL")')
+    assert result is not NIL
+
+
+def test_dd_get_obj_still_true_after_the_cellview_is_closed(session):
+    # ddGetObj asks the library manager, not the open-window state:
+    # closing an editor session does not delete the cell from the
+    # library.
+    cv = session.evaluate(
+        'dbOpenCellViewByType("LIB" "CELL" "layout" "maskLayout" "w")')
+    session.evaluate(f"dbClose({cv.handle})")
+    assert session.evaluate('ddGetObj("LIB" "CELL")') is not NIL
+
+
+def test_dd_delete_obj_returns_nil_when_nothing_to_delete(session):
+    assert session.evaluate(
+        'let((ddcell) ddcell = ddGetObj("LIB" "CELL") '
+        'ddDeleteObj(ddcell))') is NIL
+
+
+def test_dd_delete_obj_deletes_and_returns_true_then_ddgetobj_says_nil(
+        session):
+    # Mirrors the bridge's actual composed usage:
+    #   ddcell = ddGetObj(lib cell) if(ddcell then ddDeleteObj(ddcell) ...)
+    session.evaluate(
+        'dbOpenCellViewByType("LIB" "CELL" "layout" "maskLayout" "w")')
+    deleted = session.evaluate(
+        'let((ddcell) ddcell = ddGetObj("LIB" "CELL") '
+        'ddDeleteObj(ddcell))')
+    assert deleted is TRUE
+    # A follow-up existence check must now honestly report gone, not
+    # always-succeed.
+    assert session.evaluate('ddGetObj("LIB" "CELL")') is NIL
 
 
 def test_dd_get_obj_read_path_returns_artifact_dir(session, tmp_path):
     assert session.evaluate(
         'ddGetObjReadPath("LIB" "CELL")') == str(tmp_path)
-
-
-def test_dd_delete_obj_returns_true(session):
-    assert session.evaluate('ddDeleteObj("LIB" "CELL")') == TRUE
 
 
 def test_tech_get_tech_file_returns_true(session):

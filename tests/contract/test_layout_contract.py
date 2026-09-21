@@ -19,6 +19,7 @@ from virtuoso_bridge.virtuoso.layout.ops import (  # noqa: E402
     layout_create_path,
     layout_create_polygon,
     layout_create_rect,
+    layout_delete_cell,
     layout_delete_selected,
     layout_fit_view,
     layout_highlight_net,
@@ -172,6 +173,28 @@ def test_instance_bbox_composes_through_master(bridge_client):
     assert inst["cell"] == "MASTER"
     assert inst["xy"] == (10.0, 20.0)
     assert inst["bbox"] == [(10.0, 20.0), (11.0, 21.0)]
+
+
+def test_layout_delete_cell_actually_deletes_then_reports_not_found(
+        bridge_client):
+    """Final fix wave, finding 7: ddGetObj/ddDeleteObj must not
+    accept-and-lie. layout_delete_cell's real composed SKILL does
+    ddcell = ddGetObj(lib cell) then if(ddcell then ddDeleteObj(ddcell)
+    "deleted..." else "ERROR: cell not found..."); a dishonest stub
+    always reports "deleted" even on a second call with nothing left to
+    delete."""
+    client, _ = bridge_client
+    _run(client,
+         layout_bind_current_or_open_cell_view("LIB", "CELL"),
+         layout_create_rect("met1", "drawing", 0.0, 0.0, 1.0, 1.0))
+
+    first = client.execute_skill(layout_delete_cell("LIB", "CELL"))
+    assert first.status == ExecutionStatus.SUCCESS
+    assert first.output == '"deleted: LIB/CELL"'
+
+    second = client.execute_skill(layout_delete_cell("LIB", "CELL"))
+    assert second.status == ExecutionStatus.SUCCESS
+    assert second.output == '"ERROR: cell not found: LIB/CELL"'
 
 
 def test_open_window_through_skill_actually_opens_a_window(bridge_client):

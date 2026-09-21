@@ -13,6 +13,11 @@ class Design:
         self._cellviews: dict[tuple[str, str, str], CellView] = {}
         self._handles: dict[str, DbObject] = {}
         self._counter = itertools.count(0x1000)
+        # Cells the library manager knows about, independent of whether a
+        # view is currently open in an editor window (closing a window
+        # does not delete the cell from the library). Populated by
+        # open_cellview, consulted/mutated by ddGetObj/ddDeleteObj.
+        self._known_cells: set[tuple[str, str]] = set()
 
     # -- 핸들 ------------------------------------------------------------
 
@@ -40,8 +45,15 @@ class Design:
     def find_cellview(self, lib: str, cell: str, view: str) -> CellView | None:
         return self._cellviews.get((lib, cell, view))
 
+    def cell_exists(self, lib: str, cell: str) -> bool:
+        return (lib, cell) in self._known_cells
+
+    def forget_cell(self, lib: str, cell: str) -> None:
+        self._known_cells.discard((lib, cell))
+
     def open_cellview(self, lib: str, cell: str, view: str,
                       view_type: str, mode: str) -> CellView:
+        self._known_cells.add((lib, cell))
         key = (lib, cell, view)
         existing = self._cellviews.get(key)
         if existing is not None:
