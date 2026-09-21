@@ -178,28 +178,39 @@ class Interpreter:
         return self.eval_node(node.else_node, env)
 
     def _eval_call(self, node: A.Call, env: Environment) -> object:
-        special = _SPECIAL_FORMS.get(node.name)
-        if special is not None:
-            return special(self, node, env)
-
-        fn = self._builtins.get(node.name)
-        if fn is None:
-            raise UnknownFunction(node.name)
-        args = [self.eval_node(a, env) for a in node.args]
-        kwargs = {k: self.eval_node(v, env) for k, v in node.kwargs.items()}
         try:
+            special = _SPECIAL_FORMS.get(node.name)
+            if special is not None:
+                return special(self, node, env)
+
+            fn = self._builtins.get(node.name)
+            if fn is None:
+                raise UnknownFunction(node.name)
+            args = [self.eval_node(a, env) for a in node.args]
+            kwargs = {k: self.eval_node(v, env)
+                      for k, v in node.kwargs.items()}
             return fn(self, args, kwargs)
         except SkillError:
             # Covers StepBudgetExceeded/UnknownFunction/ParseError too
             # (all subclass SkillError) as well as any SkillError a
             # builtin raises deliberately: pass those through unchanged.
             raise
-        except (IndexError, TypeError, ValueError, KeyError) as exc:
+        except _ProgReturn:
+            # Control flow, not an error: must keep unwinding to its
+            # enclosing prog/lambda boundary untouched by this
+            # conversion, regardless of whether it surfaces from a
+            # special form (e.g. when/unless/prog itself) or a builtin.
+            raise
+        except (IndexError, TypeError, ValueError, KeyError,
+                AttributeError, OSError) as exc:
             # A malformed SKILL call (too few/wrong-typed arguments) must
-            # surface as a SkillError, not leak the builtin's raw Python
-            # exception. _ProgReturn is deliberately not caught here: it
-            # is control flow, not an error, and must keep unwinding to
-            # its enclosing prog/lambda boundary.
+            # surface as a SkillError, not leak the interpreter's raw
+            # Python exception -- whether it comes from a special form
+            # (setq('a), when(), cond(())) or a builtin (a stray
+            # AttributeError/OSError such as dbCreateSimpleMosaic against
+            # a non-CellView master, or hiWindowSaveImage onto an
+            # existing directory). A stderr traceback must mean a genuine
+            # bug in the mock, not malformed user SKILL.
             raise SkillError(f"{node.name}: {exc}") from exc
 
     def call_lambda(self, fn: Lambda, args: list) -> object:

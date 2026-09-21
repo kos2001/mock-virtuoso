@@ -129,6 +129,42 @@ def test_return_outside_prog_in_foreach_raises_skill_error():
         run("foreach(x list(1 2) return(9))")
 
 
+# --- Final fix wave: special forms must go through the error boundary too
+# (finding 4), and AttributeError/OSError must convert like the other
+# malformed-call exceptions (finding 5). ------------------------------
+
+
+@pytest.mark.parametrize("source", ["setq('a)", "when()", "cond(())"])
+def test_malformed_special_form_call_raises_skill_error_not_raw_exception(source):
+    # Previously these leaked a raw IndexError straight out of
+    # evaluate_source (and printed a stderr traceback at the server
+    # layer), because the try/except SkillError-conversion boundary in
+    # _eval_call only wrapped the builtin dispatch branch, not the
+    # _SPECIAL_FORMS branch.
+    with pytest.raises(SkillError):
+        run(source)
+
+
+def test_attribute_error_from_a_builtin_converts_to_skill_error():
+    it = Interpreter()
+
+    def boom(interp, args, kwargs):
+        return args[0].no_such_attribute
+
+    it.register("boom", boom)
+    with pytest.raises(SkillError):
+        it.evaluate_source("boom(1)")
+
+
+def test_prog_return_still_survives_the_error_boundary_change():
+    # Task 10 contract: _ProgReturn is control flow, not an error, and
+    # must keep unwinding to its enclosing prog even after the
+    # try/except was widened to cover special forms.
+    result = run(
+        'prog((cv) unless(cv return("ERROR")) return("ok"))')
+    assert result == "ERROR"
+
+
 def test_lambda_is_a_return_boundary():
     interp = Interpreter()
     interp.register("applyOne",
