@@ -98,6 +98,24 @@ a false negative — a test asserting `nil` for the "not implemented" path
 would keep passing forever, hiding the gap. Loud failure was chosen over
 fidelity to that particular Virtuoso quirk.
 
+## Demo
+
+A runnable end-to-end demonstration lives in `demo/demo_layout_session.py`. It drives
+`virtuoso-bridge-lite`'s own high-level Python API — `client.layout.edit()`,
+`client.open_window()`, `client.get_current_design()`, `client.list_windows()`,
+`client.fetch()`, `client.screenshot()` — against the mock. No line in it touches the
+mock directly; every call is the same one you would make against a real Cadence Virtuoso.
+
+```bash
+uv pip install --python .venv/bin/python -e ../virtuoso-bridge-lite   # test-time only
+.venv/bin/python demo/demo_layout_session.py
+```
+
+It builds a small layout (device rectangles, metal routing, a via, pin labels), places
+two instances of it in a top cell, reads the result back through the bridge's own
+`parse_layout_geometry_output`, batch-fetches attributes, writes a screenshot, and shows
+out-of-scope SKILL (`mae*`, `sch*`) failing loudly rather than silently succeeding.
+
 ## Known upstream issues
 
 While building the contract tests (Task 12), we found that
