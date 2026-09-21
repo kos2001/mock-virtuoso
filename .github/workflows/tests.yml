@@ -1,0 +1,59 @@
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit:
+    name: unit (no bridge installed)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[dev]"
+      # The contract tests importorskip virtuoso_bridge, so this job proves the
+      # package stands alone — no bridge, no Cadence, no network.
+      - run: pytest -q
+      - name: mock_virtuoso must never import virtuoso_bridge
+        run: |
+          if grep -rnE '^\s*(import|from)\s+virtuoso_bridge' src/; then
+            echo "::error::src/ imports the bridge; only tests/contract/ may"
+            exit 1
+          fi
+
+  contract:
+    name: contract (against virtuoso-bridge-lite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: mock-virtuoso }
+      - uses: actions/checkout@v4
+        with:
+          repository: Arcadia-1/virtuoso-bridge-lite
+          path: virtuoso-bridge-lite
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - working-directory: mock-virtuoso
+        run: |
+          pip install -e ".[dev]"
+          pip install -e ../virtuoso-bridge-lite
+      # These drive the real bridge's builders, client API and readers against
+      # the mock. A bridge change that breaks them is a real regression.
+      - working-directory: mock-virtuoso
+        run: pytest tests/contract -q
+      - name: contract tests must actually run, not skip
+        working-directory: mock-virtuoso
+        run: |
+          pytest tests/contract -q 2>&1 | tee out.txt
+          grep -qE '[0-9]+ passed' out.txt || { echo "::error::no contract tests ran"; exit 1; }
+          grep -qE 'skipped' out.txt && { echo "::error::contract tests were skipped"; exit 1; }
+          exit 0
