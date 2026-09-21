@@ -251,7 +251,21 @@ def install(session) -> None:
         return DdCellHandle(lib, cell)
 
     def dd_get_obj_read_path(it, args, kwargs):
-        return str(session.artifact_dir)
+        # The bridge's get_current_design() calls
+        # ddGetObjReadPath(dbGetCellViewDdId(geGetEditCellView())) and
+        # splits the result on "/", taking parts[-4:-1] as (lib, cell,
+        # view). A real Virtuoso path looks like
+        # .../<lib>/<cell>/<view>/... , so this must derive its answer
+        # from the cellview it is given rather than an unrelated
+        # constant, and end in a trailing separator so those three
+        # components land exactly where the bridge expects them.
+        obj = args[0] if args else NIL
+        if not isinstance(obj, CellView):
+            raise SkillError("ddGetObjReadPath needs a cellView")
+        lib = obj.get_prop("libName")
+        cell = obj.get_prop("cellName")
+        view = obj.get_prop("viewName")
+        return f"{session.artifact_dir}/{lib}/{cell}/{view}/"
 
     def dd_delete_obj(it, args, kwargs):
         ddcell = args[0]

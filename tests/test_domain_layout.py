@@ -304,9 +304,17 @@ def test_dd_delete_obj_deletes_and_returns_true_then_ddgetobj_says_nil(
     assert session.evaluate('ddGetObj("LIB" "CELL")') is NIL
 
 
-def test_dd_get_obj_read_path_returns_artifact_dir(session, tmp_path):
-    assert session.evaluate(
-        'ddGetObjReadPath("LIB" "CELL")') == str(tmp_path)
+def test_dd_get_obj_read_path_rejects_a_non_cellview_string(session, tmp_path):
+    # Old (wrong) behaviour: ddGetObjReadPath ignored its argument and
+    # always returned str(session.artifact_dir), regardless of what was
+    # passed. That let the bridge's get_current_design() parse the mock's
+    # own temp-directory path as if it were lib/cell/view, returning
+    # garbage. It must now derive the path from a real cellview object
+    # instead, and reject anything else -- see
+    # test_dd_get_obj_read_path_splits_into_lib_cell_view below for the
+    # correct-argument case.
+    with pytest.raises(SkillError):
+        session.evaluate('ddGetObjReadPath("LIB" "CELL")')
 
 
 def test_tech_get_tech_file_returns_true(session):
@@ -392,3 +400,21 @@ def test_deep_acyclic_hierarchy_still_composes(session, capsys):
     top = session.design.find_cellview("L", "TOP2", "layout")
     assert top.bbox == [[105.0, 105.0], [106.0, 106.0]]
     assert capsys.readouterr().err == ""
+
+
+def test_dd_get_obj_read_path_splits_into_lib_cell_view(session):
+    # Mirrors virtuoso_bridge's own get_current_design() parsing so this
+    # test would fail if the two ever drift apart:
+    #   parts = output.split("/"); parts[-4], parts[-3], parts[-2]
+    path = session.evaluate(
+        'cv = dbOpenCellViewByType("DEMO" "INV" "layout" "maskLayout" "w") '
+        'ddGetObjReadPath(dbGetCellViewDdId(cv))')
+    assert isinstance(path, str)
+    parts = path.split("/")
+    assert len(parts) >= 4
+    assert (parts[-4], parts[-3], parts[-2]) == ("DEMO", "INV", "layout")
+
+
+def test_dd_get_obj_read_path_rejects_non_cellview(session):
+    with pytest.raises(SkillError):
+        session.evaluate('ddGetObjReadPath("not a cellview")')
