@@ -96,6 +96,11 @@ def test_create_path_round_trips_through_reader(bridge_client):
     path = next(r for r in rows if r.get("objType") == "path")
     assert path["layer"] == "met2"
     assert path["points"] == [(0.0, 0.0), (4.0, 0.0)]
+    # width=2.0 is only observable through the widened bbox: the points'
+    # bbox expanded by half the width on every side. A mock that dropped
+    # the width parameter entirely would report the unexpanded points bbox
+    # [(0.0, 0.0), (4.0, 0.0)] here instead.
+    assert path["bbox"] == [(-1.0, -1.0), (5.0, 1.0)]
 
 
 def test_create_polygon_round_trips_through_reader(bridge_client):
@@ -110,6 +115,8 @@ def test_create_polygon_round_trips_through_reader(bridge_client):
     assert _counts_by_kind(rows) == {"polygon": 1}
 
     polygon = next(r for r in rows if r.get("objType") == "polygon")
+    assert polygon["layer"] == "poly"
+    assert polygon["purpose"] == "drawing"
     assert polygon["points"] == [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]
 
 
@@ -127,6 +134,18 @@ def test_create_label_round_trips_through_reader(bridge_client):
     label = next(r for r in rows if r.get("objType") == "label")
     assert label["xy"] == (1.0, 2.0)
     assert label["text"] == '"VDD"'
+    # orient is reported as the raw wire token, quotes and all — do not
+    # strip the quotes just to make this prettier, that would stop pinning
+    # the actual wire format.
+    assert label["orient"] == '"R0"'
+    # height=0.5 is only observable through the half-height bbox around
+    # the anchor point. A mock that dropped height would report a
+    # zero-size box at the anchor instead.
+    assert label["bbox"] == [(0.75, 1.75), (1.25, 2.25)]
+    # justification ("centerCenter") and font ("stick") are passed to
+    # layout_create_label but parse_layout_geometry_output does not expose
+    # them (the reader only yields objType/layer/purpose/bbox/points/xy/
+    # orient/text) — this is a limit of the reader, not an oversight here.
 
 
 # -- 3. 인스턴스 bbox가 마스터를 통해 합성된다 -------------------------------
@@ -293,30 +312,65 @@ def test_select_then_delete_changes_shape_count(bridge_client):
 
 
 # -- 그 밖의 편집 경로: 층 표시, 활성 lpp, fit view, shape 목록, 에러 경로 --
+#
+# 각 함수를 별도 테스트로 나눈다: 묶어두면 첫 하위 검사의 실패가 나머지를
+# 가리고, 테스트 이름만으로는 무엇이 깨졌는지 알 수 없다.
 
 
-def test_additional_editing_paths(bridge_client):
-    client, session = bridge_client
+def _bind_and_open_window(client, session, lib="LIB", cell="CELL"):
     _run(client,
-         layout_bind_current_or_open_cell_view("LIB", "CELL"),
+         layout_bind_current_or_open_cell_view(lib, cell),
          layout_create_rect("met1", "drawing", 0.0, 0.0, 1.0, 1.0))
-    cv = session.design.find_cellview("LIB", "CELL", "layout")
+    cv = session.design.find_cellview(lib, cell, "layout")
     session.open_window(cv)
+    return cv
 
-    show_layers = client.execute_skill(
+
+def test_show_only_layers_updates_palette(bridge_client):
+    client, session = bridge_client
+    _bind_and_open_window(client, session)
+
+    result = client.execute_skill(
         layout_show_only_layers([("met1", "drawing")]))
-    assert show_layers.status == ExecutionStatus.SUCCESS
+    assert result.status == ExecutionStatus.SUCCESS
+    # The fixture yields the Session directly, so palette state is
+    # observable without a bridge read-back path (there isn't one).
+    assert session.palette == {("met1", "drawing"): True}
 
-    set_lpp = client.execute_skill(layout_set_active_lpp("met1", "drawing"))
-    assert set_lpp.status == ExecutionStatus.SUCCESS
 
-    fit_view = client.execute_skill(layout_fit_view())
-    assert fit_view.status == ExecutionStatus.SUCCESS
+def test_set_active_lpp_updates_session_state(bridge_client):
+    client, session = bridge_client
+    _bind_and_open_window(client, session)
 
-    list_shapes = client.execute_skill(layout_list_shapes())
-    assert list_shapes.status == ExecutionStatus.SUCCESS
-    assert "met1" in list_shapes.output
+    result = client.execute_skill(layout_set_active_lpp("met2", "drawing"))
+    assert result.status == ExecutionStatus.SUCCESS
+    assert session.active_lpp == ("met2", "drawing")
 
-    net_error = client.execute_skill(layout_highlight_net("VDD"))
-    assert net_error.status == ExecutionStatus.SUCCESS
-    assert net_error.output.strip('"') == "ERROR: net not found: VDD"
+
+def test_fit_view_succeeds(bridge_client):
+    client, session = bridge_client
+    _bind_and_open_window(client, session)
+
+    # layout_fit_view() has no observable effect in the mock (it only
+    # calls hiZoomAbsoluteScale, which the mock accepts and ignores) —
+    # a status check is deliberately the whole test here, not a gap.
+    result = client.execute_skill(layout_fit_view())
+    assert result.status == ExecutionStatus.SUCCESS
+
+
+def test_list_shapes_reports_layer(bridge_client):
+    client, session = bridge_client
+    _bind_and_open_window(client, session)
+
+    result = client.execute_skill(layout_list_shapes())
+    assert result.status == ExecutionStatus.SUCCESS
+    assert "met1" in result.output
+
+
+def test_highlight_net_not_found_error_path(bridge_client):
+    client, session = bridge_client
+    _bind_and_open_window(client, session)
+
+    result = client.execute_skill(layout_highlight_net("VDD"))
+    assert result.status == ExecutionStatus.SUCCESS
+    assert result.output.strip('"') == "ERROR: net not found: VDD"
