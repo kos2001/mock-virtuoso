@@ -115,3 +115,24 @@ def test_builtin_receives_keyword_arguments():
     interp.register("grab", grab)
     interp.evaluate_source('grab(1 ?path "p")')
     assert seen == {"path": "p"}
+
+
+def test_return_outside_prog_raises_skill_error():
+    with pytest.raises(SkillError) as exc:
+        run("return(1)")
+    assert "return" in str(exc.value)
+    assert "prog" in str(exc.value)
+
+
+def test_return_outside_prog_in_foreach_raises_skill_error():
+    with pytest.raises(SkillError):
+        run("foreach(x list(1 2) return(9))")
+
+
+def test_lambda_is_a_return_boundary():
+    interp = Interpreter()
+    interp.register("applyOne",
+                     lambda it, args, kwargs: it.call_lambda(args[0], [args[1]]))
+    result = interp.evaluate_source(
+        'prog((a) a = applyOne(lambda((x) return(x + 1)) 5) a + 100)')
+    assert result == 106

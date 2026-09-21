@@ -99,8 +99,16 @@ class Interpreter:
         self._steps = 0
         forms = read_all(source)
         result: object = NIL
-        for form in forms:
-            result = self.eval_node(form, self.globals)
+        try:
+            for form in forms:
+                result = self.eval_node(form, self.globals)
+        except _ProgReturn:
+            # A return() that escaped every enclosing prog (or a call_lambda
+            # boundary) is a user error in the SKILL program, not an
+            # interpreter crash: surface it as a SkillError like any other
+            # runtime mistake, instead of leaking the internal control-flow
+            # exception type.
+            raise SkillError("return outside prog") from None
         return result
 
     # -- 평가 ------------------------------------------------------------
@@ -164,10 +172,20 @@ class Interpreter:
         env = fn.env.child()
         for name, value in zip(fn.params, args):
             env.define(name, value)
-        result: object = NIL
-        for form in fn.body:
-            result = self.eval_node(form, env)
-        return result
+        # Deliberate contract: a lambda call is itself a return() boundary,
+        # like prog. Without this, _ProgReturn would unwind dynamically to
+        # whatever prog frame happens to be on the Python call stack rather
+        # than the frame lexically enclosing the lambda (or escape entirely
+        # if none is on the stack). Real virtuoso_bridge lambdas never use
+        # return(), so this choice is unconstrained by real usage; it is
+        # picked now, before Task 5's mapcar makes it reachable.
+        try:
+            result: object = NIL
+            for form in fn.body:
+                result = self.eval_node(form, env)
+            return result
+        except _ProgReturn as ret:
+            return ret.value
 
     # -- 연산자 ----------------------------------------------------------
 
