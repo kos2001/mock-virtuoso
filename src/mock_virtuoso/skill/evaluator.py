@@ -168,7 +168,20 @@ class Interpreter:
             raise UnknownFunction(node.name)
         args = [self.eval_node(a, env) for a in node.args]
         kwargs = {k: self.eval_node(v, env) for k, v in node.kwargs.items()}
-        return fn(self, args, kwargs)
+        try:
+            return fn(self, args, kwargs)
+        except SkillError:
+            # Covers StepBudgetExceeded/UnknownFunction/ParseError too
+            # (all subclass SkillError) as well as any SkillError a
+            # builtin raises deliberately: pass those through unchanged.
+            raise
+        except (IndexError, TypeError, ValueError, KeyError) as exc:
+            # A malformed SKILL call (too few/wrong-typed arguments) must
+            # surface as a SkillError, not leak the builtin's raw Python
+            # exception. _ProgReturn is deliberately not caught here: it
+            # is control flow, not an error, and must keep unwinding to
+            # its enclosing prog/lambda boundary.
+            raise SkillError(f"{node.name}: {exc}") from exc
 
     def call_lambda(self, fn: Lambda, args: list) -> object:
         env = fn.env.child()

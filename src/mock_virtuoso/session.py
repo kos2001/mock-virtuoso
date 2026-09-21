@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 from mock_virtuoso.db.design import Design
@@ -28,7 +29,9 @@ class Session:
         self.palette: dict[tuple[str, str], bool] = {}
         self.active_lpp: tuple[str, str] | None = None
         self.selection: list = []
-        self.artifact_dir = Path(artifact_dir) if artifact_dir else Path.cwd()
+        self.artifact_dir = (
+            Path(artifact_dir) if artifact_dir
+            else Path(tempfile.gettempdir()) / "mock-virtuoso")
 
         # 핸들 해석을 Design에 연결한다. 인터프리터는 DB를 모르고,
         # 이 한 줄만이 둘을 잇는다.
