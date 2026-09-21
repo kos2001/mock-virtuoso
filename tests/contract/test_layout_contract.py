@@ -455,3 +455,58 @@ def test_highlight_net_not_found_error_path(bridge_client):
     result = client.execute_skill(layout_highlight_net("VDD"))
     assert result.status == ExecutionStatus.SUCCESS
     assert result.output.strip('"') == "ERROR: net not found: VDD"
+
+
+# -- 브릿지의 client 편의 메서드 (raw SKILL 빌더가 아니라) ------------------
+#
+# 위 테스트들은 전부 raw SKILL 빌더(client.execute_skill(builder(...)))를
+# 구동한다. 실제 사용자는 client의 편의 메서드(open_window,
+# get_current_design, list_windows, screenshot, fetch)를 직접 호출한다 --
+# 이 파일이 그 경로를 하나도 구동하지 않았던 것이 세 가지 갭을 놓친 원인.
+
+
+def test_client_get_current_design_after_open_window(bridge_client):
+    client, _session = bridge_client
+    result = client.open_window("DEMO", "INV", view="layout")
+    assert result.status == ExecutionStatus.SUCCESS
+
+    assert client.get_current_design() == ("DEMO", "INV", "layout")
+
+
+def test_client_list_windows_after_open_window(bridge_client):
+    client, _session = bridge_client
+    result = client.open_window("DEMO", "INV", view="layout")
+    assert result.status == ExecutionStatus.SUCCESS
+
+    windows = client.list_windows()
+    assert windows
+    entry = windows[0]
+    assert "num" in entry
+    assert "name" in entry
+    assert "DEMO" in entry["name"]
+
+
+def test_client_screenshot_writes_a_png(bridge_client, tmp_path):
+    client, _session = bridge_client
+    result = client.open_window("DEMO", "INV", view="layout")
+    assert result.status == ExecutionStatus.SUCCESS
+
+    output = tmp_path / "shot.png"
+    shot = client.screenshot(output=output, target="layout")
+    assert shot.status == ExecutionStatus.SUCCESS
+    assert output.exists()
+    assert output.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_client_fetch_on_selection(bridge_client):
+    client, session = bridge_client
+    _bind_and_open_window(client, session)
+
+    select_result = client.execute_skill(
+        layout_select_box((0.0, 0.0, 1.0, 1.0)))
+    assert select_result.status == ExecutionStatus.SUCCESS
+
+    rows = client.fetch("geGetSelSet()", ["objType", "lpp"])
+    assert len(rows) == 1
+    assert rows[0]["objType"] == "rect"
+    assert rows[0]["lpp"] == ["met1", "drawing"]
