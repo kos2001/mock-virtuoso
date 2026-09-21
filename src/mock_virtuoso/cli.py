@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import signal
 import sys
 import threading
 
@@ -43,12 +44,19 @@ def main(argv: list[str] | None = None) -> int:
         session = Session(artifact_dir=args.artifact_dir)
         server = MockVirtuosoServer(session, host=args.host, port=args.port)
         server.start()
-        print(f"mock-virtuoso listening on {args.host}:{server.port}")
+        print(f"mock-virtuoso listening on {args.host}:{server.port}", flush=True)
         print("point the bridge at it with "
-              f"VirtuosoClient.local(port={server.port})")
+              f"VirtuosoClient.local(port={server.port})", flush=True)
+        stop_event = threading.Event()
+
+        def _on_signal(_signum: int, _frame: object) -> None:
+            stop_event.set()
+
+        signal.signal(signal.SIGINT, _on_signal)
         try:
-            threading.Event().wait()
-        except KeyboardInterrupt:
+            while not stop_event.wait(timeout=0.5):
+                pass
+        finally:
             server.stop()
         return 0
 
