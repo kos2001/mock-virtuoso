@@ -30,12 +30,13 @@ def build_response(session: Session, skill_code: str, timeout: float) -> bytes:
     deadline = time.monotonic() + timeout
     try:
         value = session.evaluate(skill_code, deadline=deadline)
+        response_body = skill_repr(value)
     except SkillError as exc:
         return NAK + str(exc).encode("utf-8")
     except Exception as exc:  # 예기치 못한 내부 오류도 NAK로 내보낸다
         traceback.print_exc(file=sys.stderr)
         return NAK + f"internal error: {type(exc).__name__}: {exc}".encode("utf-8")
-    return STX + skill_repr(value).encode("utf-8")
+    return STX + response_body.encode("utf-8")
 
 
 class MockVirtuosoServer:

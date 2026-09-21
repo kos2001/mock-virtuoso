@@ -1,3 +1,6 @@
+import pytest
+
+from mock_virtuoso.skill.errors import SkillError
 from mock_virtuoso.skill.values import NIL, TRUE, Symbol, skill_repr, is_truthy
 
 
@@ -45,3 +48,14 @@ def test_is_truthy_only_nil_is_false():
     assert is_truthy("") is True
     assert is_truthy([]) is True
     assert is_truthy(NIL) is False
+
+
+# --- Final fix wave: no Python repr on the wire (finding 6) ---------------
+
+
+def test_repr_of_value_with_no_wire_representation_raises_skill_error():
+    class NoWireRepr:
+        pass
+
+    with pytest.raises(SkillError):
+        skill_repr(NoWireRepr())

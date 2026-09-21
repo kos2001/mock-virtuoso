@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+from mock_virtuoso.skill.errors import SkillError
+
 
 class _Nil:
     _instance = None
@@ -108,4 +110,4 @@ def skill_repr(value: object) -> str:
         return "(" + " ".join(skill_repr(v) for v in value) + ")"
     if isinstance(value, SkillObject):
         return value.handle
-    return str(value)
+    raise SkillError(f"no %L representation for {type(value).__name__}")

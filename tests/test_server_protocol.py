@@ -98,6 +98,17 @@ def test_build_response_timeout_message_shape(tmp_path):
     assert build_response(session, "1+2", 0) == b"\x15TimeoutError"
 
 
+# --- Final fix wave: no Python repr on the wire (finding 6) --------------
+
+
+def test_lambda_result_is_a_clean_nak_not_a_python_object_repr(tmp_path):
+    session = Session(artifact_dir=tmp_path)
+    response = build_response(session, "lambda((x) x)", 30)
+    assert response.startswith(NAK)
+    assert b"0x" not in response  # no memory address leaked onto the wire
+    assert b"<mock_virtuoso" not in response
+
+
 # ---- Finding 1: Non-object JSON bodies kill the server ----
 
 def test_json_body_integer_returns_nak_server_alive(server):
