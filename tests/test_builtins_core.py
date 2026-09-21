@@ -132,3 +132,15 @@ def test_boundp_in_complex_bridge_form():
     """The real bridge form that uses boundp."""
     result = run('let((rbCv) rbCv = if(boundp(\'cv) && cv then cv else nil) rbCv)')
     assert result is NIL  # cv not set, so boundp returns nil
+
+
+def test_stringp_true_for_string():
+    assert run('stringp("a")') is TRUE
+
+
+def test_stringp_false_for_number():
+    assert run('stringp(5)') is NIL
+
+
+def test_stringp_false_for_nil():
+    assert run('stringp(nil)') is NIL

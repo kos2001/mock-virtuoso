@@ -126,6 +126,9 @@ def install(interp: Interpreter) -> None:
         # 셸을 실제로 실행하지 않는다. 테스트 더블이 시스템을 건드리면 안 된다.
         return TRUE
 
+    def stringp(it, args, kwargs):
+        return TRUE if isinstance(args[0], str) else NIL
+
     for name, fn in (
         ("sprintf", sprintf), ("printf", printf), ("strcat", strcat),
         ("length", length), ("car", car), ("cadr", cadr), ("cdr", cdr),
@@ -133,5 +136,6 @@ def install(interp: Interpreter) -> None:
         ("member", member),
         ("xCoord", xcoord), ("yCoord", ycoord),
         ("atoi", atoi), ("atof", atof), ("csh", csh),
+        ("stringp", stringp),
     ):
         interp.register(name, fn)

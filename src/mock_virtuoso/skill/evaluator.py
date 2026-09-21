@@ -445,6 +445,36 @@ def _sf_quote(it: Interpreter, node: A.Call, env: Environment) -> object:
     return it.eval_node(target, env)
 
 
+def _sf_errset(it: Interpreter, node: A.Call, env: Environment) -> object:
+    """SKILL's error-trapping form: ``errset(form [printFlag])``.
+
+    Evaluates ``form`` and returns its value on success, or ``nil`` if a
+    ``SkillError`` was raised while evaluating it. The optional second
+    argument (a print flag in real SKILL) is accepted but unused -- it is
+    never evaluated, matching the special-form (non-eager) contract.
+
+    Must be a special form, not a builtin: a builtin's arguments are
+    evaluated eagerly by ``_eval_call`` before the builtin ever runs, so
+    an error inside ``form`` would already have propagated past the point
+    where a builtin could catch it.
+
+    ``StepBudgetExceeded`` and ``EvaluationTimeout`` are runaway-execution
+    guards, not SKILL-level errors, so they must keep propagating through
+    ``errset`` -- catching them here would let a SKILL script mask its own
+    infinite loop or hung call. ``_ProgReturn`` is Python control flow, not
+    a ``SkillError`` subclass, so it is never caught by the except clause
+    below and unwinds through untouched.
+    """
+    if not node.args:
+        raise SkillError("errset requires an expression")
+    try:
+        return it.eval_node(node.args[0], env)
+    except (StepBudgetExceeded, EvaluationTimeout):
+        raise
+    except SkillError:
+        return NIL
+
+
 def _sf_boundp(it: Interpreter, node: A.Call, env: Environment) -> object:
     if not node.args:
         raise SkillError("boundp requires a symbol")
@@ -476,4 +506,5 @@ _SPECIAL_FORMS = {
     "lambda": _sf_lambda,
     "quote": _sf_quote,
     "boundp": _sf_boundp,
+    "errset": _sf_errset,
 }
