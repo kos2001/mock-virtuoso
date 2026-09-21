@@ -1,4 +1,9 @@
+<img src="assets/icon.svg" width="72" height="72" align="left" alt="" style="margin-right:14px"/>
+
 # mock-virtuoso
+
+<br clear="left"/>
+
 
 A test double that speaks the Cadence RAMIC bridge TCP protocol and
 interprets a subset of Cadence SKILL, so `virtuoso-bridge-lite` can be

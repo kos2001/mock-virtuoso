@@ -186,6 +186,16 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if u.path in ("/favicon.ico", "/favicon.svg", "/icon.svg"):
+            name = "icon.svg" if u.path == "/icon.svg" else "icon-small.svg"
+            body = (HERE.parent / "assets" / name).read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/svg+xml")
+            self.send_header("Cache-Control", "max-age=3600")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if u.path == "/api/state":
             return self._send(snapshot())
         if u.path == "/api/geometry":

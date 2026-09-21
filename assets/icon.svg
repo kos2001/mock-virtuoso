@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
+     role="img" aria-label="mock-virtuoso: a stack of mask layers over a die outline">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#161b22"/>
+      <stop offset="1" stop-color="#0a0d12"/>
+    </linearGradient>
+
+    <!-- stipple fills, the way a layout editor draws mask layers -->
+    <pattern id="pNwell" width="8" height="8" patternUnits="userSpaceOnUse">
+      <path d="M0 8 L8 0 M-2 2 L2 -2 M6 10 L10 6" stroke="#2f6f4f" stroke-width="1.6" opacity=".95"/>
+    </pattern>
+    <pattern id="pPoly" width="8" height="8" patternUnits="userSpaceOnUse">
+      <path d="M0 0 L8 8 M-2 6 L2 10 M6 -2 L10 2" stroke="#f85149" stroke-width="1.6" opacity=".95"/>
+    </pattern>
+    <pattern id="pMet" width="8" height="8" patternUnits="userSpaceOnUse">
+      <path d="M0 8 L8 0 M-2 2 L2 -2 M6 10 L10 6" stroke="#4493f8" stroke-width="1.6" opacity=".95"/>
+    </pattern>
+  </defs>
+
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <rect x="1.5" y="1.5" width="253" height="253" rx="54.5" fill="none"
+        stroke="#30363d" stroke-width="3"/>
+
+  <!-- design grid -->
+  <g stroke="#1b2430" stroke-width="2">
+    <path d="M40 64H216M40 104H216M40 144H216M40 184H216"/>
+    <path d="M72 40V216M112 40V216M152 40V216M192 40V216"/>
+  </g>
+
+  <!-- die outline -->
+  <rect x="44" y="44" width="168" height="168" rx="10" fill="none"
+        stroke="#233043" stroke-width="4"/>
+
+  <!-- mask layers, offset like a stack -->
+  <g stroke-linejoin="round">
+    <rect x="60" y="150" width="136" height="46" rx="5"
+          fill="url(#pNwell)" stroke="#3fb950" stroke-width="4"/>
+    <rect x="60" y="150" width="136" height="46" rx="5" fill="#3fb95022"/>
+
+    <rect x="84" y="104" width="88" height="40" rx="5"
+          fill="url(#pPoly)" stroke="#f85149" stroke-width="4"/>
+    <rect x="84" y="104" width="88" height="40" rx="5" fill="#f8514922"/>
+
+    <rect x="60" y="60" width="136" height="38" rx="5"
+          fill="url(#pMet)" stroke="#4493f8" stroke-width="4"/>
+    <rect x="60" y="60" width="136" height="38" rx="5" fill="#4493f822"/>
+  </g>
+
+  <!-- vias tying the stack together: the "bridge" -->
+  <g fill="#e3b341" stroke="#0a0d12" stroke-width="3">
+    <rect x="112" y="88" width="22" height="22" rx="3"/>
+    <rect x="112" y="138" width="22" height="22" rx="3"/>
+  </g>
+
+  <!-- pin ports on the left edge -->
+  <g fill="#8b949e">
+    <rect x="30" y="72" width="16" height="10" rx="2"/>
+    <rect x="30" y="118" width="16" height="10" rx="2"/>
+    <rect x="30" y="164" width="16" height="10" rx="2"/>
+  </g>
+</svg>
