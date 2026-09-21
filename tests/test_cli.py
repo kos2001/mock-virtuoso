@@ -3,8 +3,42 @@ import socket
 import subprocess
 import threading
 import time
+from typing import Optional
 
 from mock_virtuoso.cli import main
+
+
+def _read_line_bounded(proc: subprocess.Popen, timeout: float) -> Optional[str]:
+    """Read one line from process stdout with timeout.
+
+    Returns the line if available within timeout, None if timeout expires.
+    Raises AssertionError with timeout message if the read takes too long.
+    """
+    result = [None]
+    exception = [None]
+
+    def read_thread():
+        try:
+            result[0] = proc.stdout.readline()
+        except Exception as e:
+            exception[0] = e
+
+    thread = threading.Thread(target=read_thread, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout)
+
+    if exception[0]:
+        raise exception[0]
+
+    if thread.is_alive():
+        # Thread is still reading; this means readline() blocked.
+        # This indicates the data was not flushed.
+        raise AssertionError(
+            f"readline() did not return within {timeout}s — "
+            "banner may not be flushed"
+        )
+
+    return result[0]
 
 
 def test_eval_prints_result(capsys):
@@ -31,10 +65,11 @@ def test_serve_banner_flushed_when_redirected(tmp_path):
         text=True,
     )
 
-    # Read the banner (with timeout to detect if it never appears)
+    # Read the banner with bounded timeout (fails fast if flush is missing)
     start = time.time()
     try:
-        line1 = proc.stdout.readline()
+        line1 = _read_line_bounded(proc, timeout=1.0)
+        assert line1 is not None, "readline() returned None (unexpected EOF)"
         elapsed = time.time() - start
 
         # Should get the first line quickly (not waiting for EOF)
@@ -47,8 +82,9 @@ def test_serve_banner_flushed_when_redirected(tmp_path):
         port = int(match.group(1))
         assert port > 0, "Port should be positive"
 
-        # Read second line
-        line2 = proc.stdout.readline()
+        # Read second line with bounded timeout
+        line2 = _read_line_bounded(proc, timeout=1.0)
+        assert line2 is not None, "readline() returned None on second line"
         assert "VirtuosoClient.local" in line2
         assert str(port) in line2, f"Port {port} not in second line: {line2}"
 
@@ -85,8 +121,9 @@ def test_serve_responds_to_sigint(tmp_path):
     )
 
     try:
-        # Wait for banner to ensure server is up
-        line1 = proc.stdout.readline()
+        # Wait for banner to ensure server is up (with bounded timeout)
+        line1 = _read_line_bounded(proc, timeout=1.0)
+        assert line1 is not None, "readline() returned None (unexpected EOF)"
         assert "mock-virtuoso listening on" in line1
 
         # Send SIGINT
