@@ -7,8 +7,11 @@ from __future__ import annotations
 
 from typing import Callable
 
+import time
+
 from mock_virtuoso.skill import ast_nodes as A
 from mock_virtuoso.skill.errors import (
+    EvaluationTimeout,
     SkillError,
     StepBudgetExceeded,
     UnknownFunction,
@@ -80,6 +83,8 @@ class Interpreter:
         self._builtins: dict[str, Builtin] = {}
         self._step_budget = step_budget
         self._steps = 0
+        self._deadline: float | None = None
+        self._step_check_counter = 0  # Check deadline every N steps for efficiency
         self._install_operators()
         from mock_virtuoso.skill import builtins_core
         builtins_core.install(self)
@@ -97,8 +102,10 @@ class Interpreter:
 
     # -- 진입점 ----------------------------------------------------------
 
-    def evaluate_source(self, source: str) -> object:
+    def evaluate_source(self, source: str, deadline: float | None = None) -> object:
         self._steps = 0
+        self._deadline = deadline
+        self._step_check_counter = 0
         forms = read_all(source)
         result: object = NIL
         try:
@@ -111,6 +118,8 @@ class Interpreter:
             # runtime mistake, instead of leaking the internal control-flow
             # exception type.
             raise SkillError("return outside prog") from None
+        finally:
+            self._deadline = None
         return result
 
     # -- 평가 ------------------------------------------------------------
@@ -120,6 +129,16 @@ class Interpreter:
         if self._steps > self._step_budget:
             raise StepBudgetExceeded(
                 f"evaluation exceeded {self._step_budget} steps")
+
+        # Check deadline every 20 steps for efficiency, but if very short deadline, check more frequently
+        if self._deadline is not None:
+            self._step_check_counter += 1
+            # For tight deadlines, check more often
+            check_freq = 2 if time.monotonic() + 0.01 >= self._deadline else 20
+            if self._step_check_counter >= check_freq:
+                self._step_check_counter = 0
+                if time.monotonic() >= self._deadline:
+                    raise EvaluationTimeout()
 
         if isinstance(node, A.Const):
             return node.value

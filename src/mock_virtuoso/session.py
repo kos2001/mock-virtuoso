@@ -46,8 +46,8 @@ class Session:
         layout.install(self)
         windows_domain.install(self)
 
-    def evaluate(self, source: str) -> object:
-        return self.interp.evaluate_source(source)
+    def evaluate(self, source: str, deadline: float | None = None) -> object:
+        return self.interp.evaluate_source(source, deadline=deadline)
 
     def open_window(self, cellview) -> Window:
         number = len(self.windows) + 1

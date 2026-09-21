@@ -25,3 +25,10 @@ class UnknownFunction(SkillError):
 
 class StepBudgetExceeded(SkillError):
     """평가 스텝 예산을 초과했다. 무한 루프 방어."""
+
+
+class EvaluationTimeout(SkillError):
+    """벽시계 시간 초과로 평가를 중단했다."""
+
+    def __init__(self) -> None:
+        super().__init__("TimeoutError")
