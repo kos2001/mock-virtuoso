@@ -308,31 +308,87 @@ class _FakeEndpoint:
 
 def test_discovery_picks_an_endpoint_that_answers(monkeypatch):
     """A working server on a port nobody configured used to be invisible."""
-    seen = {}
-
-    def probe(url, timeout=5):
+    def probe(url, key=None, timeout=5):
         if "8642" in url:
             raise OSError("connection refused")
-        seen["url"] = url
         return {"data": [{"id": "mi-report"}]}
 
+    monkeypatch.setattr(api, "hermes_profiles", lambda *a, **k: iter(()))
     monkeypatch.setattr(api, "_list_models", probe)
     found = api.discover_planner(["http://127.0.0.1:8642", "http://127.0.0.1:8644"])
-    assert found == ("http://127.0.0.1:8644", "mi-report")
+    assert found == ("http://127.0.0.1:8644", "mi-report", None)
 
 
 def test_discovery_prefers_the_configured_model_when_it_is_there(monkeypatch):
-    monkeypatch.setattr(api, "_list_models",
-                        lambda url, timeout=5: {"data": [{"id": "mi-report"}, {"id": "lsi"}]})
-    assert api.discover_planner(["http://x"], prefer="lsi") == ("http://x", "lsi")
+    monkeypatch.setattr(api, "hermes_profiles", lambda *a, **k: iter(()))
+    monkeypatch.setattr(api, "_list_models", lambda url, key=None, timeout=5: {
+        "data": [{"id": "mi-report"}, {"id": "lsi"}]})
+    assert api.discover_planner(["http://x"], prefer="lsi") == ("http://x", "lsi", None)
 
 
 def test_discovery_reports_nothing_rather_than_guessing(monkeypatch):
-    def refuse(url, timeout=5):
+    def refuse(url, key=None, timeout=5):
         raise OSError("connection refused")
 
+    monkeypatch.setattr(api, "hermes_profiles", lambda *a, **k: iter(()))
     monkeypatch.setattr(api, "_list_models", refuse)
     assert api.discover_planner(["http://a", "http://b"]) is None
+
+
+def test_a_profile_beats_a_bare_port_and_brings_its_own_key(monkeypatch):
+    """The dedicated gateway refused the shared key and looked like a dead port.
+
+    Every hermes profile carries its own key. Probing ports with the one key
+    in ~/.hermes/.env got a 401 from the gateway built for this job, which is
+    indistinguishable from nobody listening — so the planner walked past it
+    and used whatever profile happened to answer.
+    """
+    monkeypatch.setattr(api, "hermes_profiles", lambda *a, **k: iter([
+        ("virtuoso-bridge", "http://127.0.0.1:8650", "its-own-key")]))
+
+    def probe(url, key=None, timeout=5):
+        if key != "its-own-key":
+            raise OSError("401 Invalid gateway API key")
+        return {"data": [{"id": "virtuoso-bridge"}]}
+
+    monkeypatch.setattr(api, "_list_models", probe)
+    assert api.discover_planner(["http://127.0.0.1:8644"]) == (
+        "http://127.0.0.1:8650", "virtuoso-bridge", "its-own-key")
+
+
+def test_a_profiles_env_key_outranks_its_config_token(tmp_path):
+    """Where the two disagree the gateway honours .env, so we must too."""
+    home = tmp_path / ".hermes"
+    profile = home / "profiles" / "virtuoso-bridge"
+    profile.mkdir(parents=True)
+    (profile / "config.yaml").write_text(
+        "platforms:\n  api_server:\n    enabled: true\n    token: stale\n"
+        "    extra:\n      port: 8650\n", encoding="utf-8")
+    (profile / ".env").write_text("API_SERVER_KEY=live\n", encoding="utf-8")
+    assert list(api.hermes_profiles(home)) == [
+        ("virtuoso-bridge", "http://127.0.0.1:8650", "live")]
+
+
+def test_the_projects_own_profile_is_tried_first(tmp_path):
+    """Order is the whole point: anything else is what happened to be up."""
+    home = tmp_path / ".hermes"
+    for name, port in (("aardvark", 8600), (api.PREFERRED_PROFILE, 8650)):
+        profile = home / "profiles" / name
+        profile.mkdir(parents=True)
+        (profile / "config.yaml").write_text(
+            f"platforms:\n  api_server:\n    enabled: true\n    token: k\n"
+            f"    extra:\n      port: {port}\n", encoding="utf-8")
+    assert [n for n, _, _ in api.hermes_profiles(home)][0] == api.PREFERRED_PROFILE
+
+
+def test_a_disabled_api_server_is_not_a_planner(tmp_path):
+    home = tmp_path / ".hermes"
+    profile = home / "profiles" / "quiet"
+    profile.mkdir(parents=True)
+    (profile / "config.yaml").write_text(
+        "platforms:\n  api_server:\n    enabled: false\n    token: k\n"
+        "    extra:\n      port: 8600\n", encoding="utf-8")
+    assert list(api.hermes_profiles(home)) == []
 
 
 # -- one unambiguous slip the model keeps making --------------------------
@@ -379,7 +435,9 @@ def test_a_configured_planner_wins_over_discovery(monkeypatch):
     monkeypatch.setattr(api, "discover_planner",
                         lambda *a, **k: (_ for _ in ()).throw(
                             AssertionError("discovery should not run when pinned")))
-    assert api.configured_planner() == ("http://pinned:9000", "layout-planner")
+    monkeypatch.setenv("VB_PLANNER_KEY", "pinned-key")
+    assert api.configured_planner() == ("http://pinned:9000", "layout-planner",
+                                        "pinned-key")
 
 
 def test_a_half_configured_planner_is_ignored(monkeypatch):
