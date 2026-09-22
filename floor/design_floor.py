@@ -37,7 +37,7 @@ from toolkit.layout_reader import read_layout
 from toolkit.planner import (
     PlanError,
     answer_text,
-    execute,
+    build_and_check,
     plan_and_validate,
 )
 
@@ -229,7 +229,7 @@ def build_from_request(text: str) -> dict:
 
     assert REQUEST_CLIENT is not None
     try:
-        report = execute(REQUEST_CLIENT, plan)
+        plan, report, planner = build_and_check(REQUEST_CLIENT, text, plan, planner)
     except Exception as exc:                                   # noqa: BLE001
         return {"ok": False, "planner": planner, "plan": plan,
                 "answer": f"bridge error: {type(exc).__name__}: {exc}"}

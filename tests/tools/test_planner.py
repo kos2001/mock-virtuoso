@@ -655,3 +655,115 @@ def test_a_violation_report_still_says_what_was_checked():
                        "instances": [], "drc": ["DRC-WIDTH-001 [error] met1: thin"]}}),
         "hermes", 1.0)
     assert api.DRC_SCOPE in text
+
+
+# -- the rules reach the planner too --------------------------------------
+
+class _Client:
+    """A client whose builds return whatever the script says, in order."""
+
+    def __init__(self, reports):
+        self.reports, self.built = list(reports), []
+
+
+def test_an_illegal_layout_is_sent_back_and_rebuilt(monkeypatch):
+    """The check ran after the build and told only the user.
+
+    "This layout is wrong" is worse than useless to someone who asked for a
+    layout, and the planner never saw a violation it caused.
+    """
+    dirty = {"built": [], "warnings": [],
+             "cells": {"C": {"drc": ["DRC-WIDTH-001 [error] met1: thin"],
+                             "shapes_by_layer": {"met1": 1}, "instances": []}}}
+    clean = {"built": [], "warnings": [],
+             "cells": {"C": {"drc": [], "shapes_by_layer": {"met1": 1},
+                             "instances": []}}}
+    runs = iter([dirty, clean])
+    monkeypatch.setattr(api, "execute", lambda c, p: next(runs))
+    seen = {}
+
+    def replan(text, timeout=90, feedback=""):
+        seen["feedback"] = feedback
+        return {"lib": "L", "cell": "C", "ops": [
+            {"op": "rect", "layer": "met1", "x0": 0, "y0": 0,
+             "x1": 1, "y1": 1}]}, "hermes"
+
+    monkeypatch.setattr(api, "plan_with_hermes", replan)
+    plan, report, planner = api.build_and_check(
+        None, "draw a wire", {"lib": "L", "cell": "C", "ops": [], "then": None},
+        "hermes")
+    assert planner == "hermes (rule-corrected)"
+    assert api._drc_errors(report) == []
+    assert "broke the technology's rules" in seen["feedback"]
+    assert "DRC-WIDTH-001" in seen["feedback"]
+
+
+def test_a_warning_does_not_trigger_a_rebuild(monkeypatch):
+    """Only the errors; a warning is not worth a second model call."""
+    warned = {"built": [], "warnings": [],
+              "cells": {"C": {"drc": ["DRC-AREA-001 [warn] poly: small"],
+                              "shapes_by_layer": {"poly": 1}, "instances": []}}}
+    monkeypatch.setattr(api, "execute", lambda c, p: warned)
+    monkeypatch.setattr(api, "plan_with_hermes", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("a warning should not cost a model call")))
+    _, _, planner = api.build_and_check(
+        None, "t", {"lib": "L", "cell": "C", "ops": [], "then": None}, "hermes")
+    assert planner == "hermes"
+
+
+def test_a_correction_that_is_not_better_is_not_kept(monkeypatch):
+    """Shipping a worse layout silently is the failure this guards."""
+    dirty = {"built": [], "warnings": [],
+             "cells": {"C": {"drc": ["DRC-WIDTH-001 [error] met1: thin"],
+                             "shapes_by_layer": {"met1": 1}, "instances": []}}}
+    worse = {"built": [], "warnings": [],
+             "cells": {"C": {"drc": ["DRC-WIDTH-001 [error] met1: thin",
+                                     "DRC-SPACE-001 [error] met1: close"],
+                             "shapes_by_layer": {"met1": 2}, "instances": []}}}
+    runs = iter([dirty, worse, dirty])
+    monkeypatch.setattr(api, "execute", lambda c, p: next(runs))
+    monkeypatch.setattr(api, "plan_with_hermes", lambda *a, **k: (
+        {"lib": "L", "cell": "C", "ops": [
+            {"op": "rect", "layer": "met1", "x0": 0, "y0": 0, "x1": 1, "y1": 1}]},
+        "hermes"))
+    original = {"lib": "L", "cell": "C", "ops": [], "then": None}
+    plan, report, planner = api.build_and_check(None, "t", original, "hermes")
+    assert plan is original, "the answer must match the plan it reports"
+    assert planner == "hermes"
+    assert len(api._drc_errors(report)) == 1
+
+
+def test_a_refused_correction_leaves_the_original_standing(monkeypatch):
+    dirty = {"built": [], "warnings": [],
+             "cells": {"C": {"drc": ["DRC-WIDTH-001 [error] met1: thin"],
+                             "shapes_by_layer": {"met1": 1}, "instances": []}}}
+    monkeypatch.setattr(api, "execute", lambda c, p: dirty)
+    monkeypatch.setattr(api, "plan_with_hermes",
+                        lambda *a, **k: ({"lib": "L", "cell": "C",
+                                          "ops": [{"op": "nonsense"}]}, "hermes"))
+    _, _, planner = api.build_and_check(
+        None, "t", {"lib": "L", "cell": "C", "ops": [], "then": None}, "hermes")
+    assert planner == "hermes"
+
+
+def test_errors_are_gathered_across_every_cell():
+    report = {"cells": {
+        "A": {"drc": ["DRC-WIDTH-001 [error] met1: x"]},
+        "B": {"drc": ["DRC-AREA-001 [warn] poly: y",
+                      "DRC-GRID-001 [error] met1: z"]}}}
+    assert len(api._drc_errors(report)) == 2
+
+
+def test_a_rule_correction_is_stated_not_slipped_in():
+    """The request asked for one thing and got another.
+
+    A correction the reader cannot see is a silent substitution — the same
+    failure as an absent measurement reading like a clean one.
+    """
+    report = _report({"C": {"shapes_by_layer": {"met1": 2}, "bBox": "b",
+                            "instances": [], "drc": []}})
+    report["corrected_from"] = ["DRC-WIDTH-001 [error] met1: 0.05 µm wide < 0.14"]
+    text = api.answer_text({"lib": "L", "cell": "C"}, report,
+                           "hermes (rule-corrected)", 1.0)
+    assert "was not buildable as asked" in text
+    assert "0.05 µm wide" in text
