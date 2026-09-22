@@ -80,6 +80,22 @@ success you have not read back.
 - If the cell you own already has content when you start, clear it first rather
   than layering a second design over the first.
 
+## When a colleague's work is not there yet
+
+Lanes run at the same time, so the cell you need may be empty when you look. Do
+not guess its numbers, and do not build a placeholder — placing what your
+colleagues actually drew is the point of working this way.
+
+Read the cell once more after a short wait, using a plain shell `sleep` between
+reads, and give it a few tries. If it is still empty, **hand back and say so**:
+report which cells you found empty, what you would have done with them, and the
+numbers you were waiting for. Whoever dispatched you is sequencing the floor and
+will wake you when the cell exists.
+
+Do not start a long-running watcher to wait for it. A lane that parks itself
+polling holds a seat and produces nothing; a lane that reports what it found
+gets resumed the moment its input is ready.
+
 ## A worked round trip
 
 ```
