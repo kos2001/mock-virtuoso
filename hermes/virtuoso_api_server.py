@@ -107,11 +107,38 @@ def plan_with_hermes(text: str, timeout: int = 90) -> tuple[dict | None, str]:
         return None, f"hermes JSON invalid: {exc}"
 
 
+CELL_WORDS = ("INV", "NAND2", "NOR2", "BUF", "DFF")
+TOP_WORDS = ("TOP", "ROW", "ARRAY")
+
+
+def _library_in(text: str) -> str:
+    """The library the request names, or DEMO.
+
+    Korean attaches its particles to the noun, so a request reads "STDLIB에
+    INV 셀" with nothing between the name and the 에. Matching a bare
+    upper-case word would also swallow the cell and the top, so those are
+    excluded by name -- being wrong about which of them is the library is
+    worse than falling back.
+    """
+    # No \b after the name: Hangul is word characters too, so there is no
+    # boundary between the "B" of STDLIB and the 에 that follows it.
+    for match in re.finditer(r"\b([A-Z][A-Z0-9_]{2,})\s*(에|라이브러리|library|lib)?", text):
+        name, marker = match.group(1), match.group(2)
+        if name in CELL_WORDS or name in TOP_WORDS:
+            continue
+        if marker:
+            return name
+    return "DEMO"
+
+
 def plan_with_rules(text: str) -> tuple[dict, str]:
     """Deterministic fallback so the server works with no LLM at all."""
     t = text.lower()
-    lib = (re.search(r"\b([A-Z][A-Z0-9_]{2,})\s*(?:라이브러리|library|lib)", text) or [None, "DEMO"])[1]
-    cell = (re.search(r"\b(INV|NAND2|NOR2|BUF|DFF)\b", text.upper()) or [None, "CELL"])[1]
+    lib = _library_in(text)
+    # (?![A-Z0-9_]) rather than \b, for the same reason as above -- and unlike
+    # \b it still refuses to read INVERTER as INV.
+    cell = (re.search(r"\b(INV|NAND2|NOR2|BUF|DFF)(?![A-Z0-9_])", text.upper())
+            or [None, "CELL"])[1]
     ops: list[dict] = [
         {"op": "rect", "layer": "nwell", "x0": -0.2, "y0": 2.0, "x1": 4.2, "y1": 4.2},
         {"op": "rect", "layer": "diff", "x0": 0.5, "y0": 2.5, "x1": 3.5, "y1": 3.7},
@@ -126,7 +153,8 @@ def plan_with_rules(text: str) -> tuple[dict, str]:
     ]
     n = int((re.search(r"(\d+)\s*(?:개|instances?|번|x|×)", t) or [0, 0])[1] or 0)
     if n:
-        top = (re.search(r"\b(TOP|ROW|ARRAY)\b", text.upper()) or [None, "TOP"])[1]
+        top = (re.search(r"\b(TOP|ROW|ARRAY)(?![A-Z0-9_])", text.upper())
+               or [None, "TOP"])[1]
         return {"lib": lib, "cell": cell, "ops": ops,
                 "then": {"cell": top, "ops": [
                     {"op": "place", "child": cell, "name": f"I{i}", "x": i * 4.4, "y": 0.0,

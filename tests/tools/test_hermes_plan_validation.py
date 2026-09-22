@@ -180,3 +180,37 @@ def test_running_the_same_plan_twice_rebuilds_rather_than_piles_up(api_server):
     rows = parse_layout_geometry_output(
         api_server.execute_skill(layout_read_geometry("DEMO", "INV")).output or "")
     assert sum(1 for r in rows if r.get("kind") == "shape") == 2
+
+
+# -- the deterministic planner ---------------------------------------------
+
+@pytest.mark.parametrize("request_text,lib", [
+    ("STDLIB에 INV 셀 만들고 TOP에 3개 배치해줘", "STDLIB"),
+    ("make an INV in the MYLIB library", "MYLIB"),
+    ("MYLIB lib에 NAND2 만들어줘", "MYLIB"),
+    ("INV 하나 만들어줘", "DEMO"),                 # no library named
+    ("TOP에 INV 4개 배치해줘", "DEMO"),            # TOP is the top cell, not a library
+])
+def test_the_rules_planner_honours_the_library_that_was_asked_for(request_text, lib):
+    plan, planner = api.plan_with_rules(request_text)
+    assert planner == "rules"
+    assert api.validate(plan)["lib"] == lib
+
+
+def test_the_rules_planner_reads_the_cell_and_the_count():
+    plan, _ = api.plan_with_rules("STDLIB에 NAND2 셀 만들고 ROW에 4개 배치해줘")
+    out = api.validate(plan)
+    assert (out["lib"], out["cell"]) == ("STDLIB", "NAND2")
+    assert out["then"]["cell"] == "ROW"
+    assert [o["name"] for o in out["then"]["ops"]] == ["I0", "I1", "I2", "I3"]
+    assert [o["orient"] for o in out["then"]["ops"]] == ["R0", "MY", "R0", "MY"]
+
+
+@pytest.mark.parametrize("request_text,cell", [
+    ("INV 셀 만들어줘", "INV"),
+    ("INV를 만들어줘", "INV"),          # a particle attached straight to the name
+    ("make an INVERTER", "CELL"),       # not a cell this planner knows
+])
+def test_the_rules_planner_reads_a_cell_name_with_a_particle_attached(request_text, cell):
+    plan, _ = api.plan_with_rules(request_text)
+    assert api.validate(plan)["cell"] == cell
