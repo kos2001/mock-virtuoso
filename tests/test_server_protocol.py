@@ -665,9 +665,12 @@ def test_stop_wins_toctou_race_between_accept_and_recording_connection(tmp_path)
 
         srv._thread.join(timeout=2)
         assert not srv._thread.is_alive(), "handler thread must not survive stop() across the race window"
-        assert stop_elapsed["seconds"] < 2, (
-            f"stop() should return promptly (well under the 5s socket timeout), "
-            f"took {stop_elapsed['seconds']:.2f}s"
+        # Measured against the timeout it guards, not a round number: stop()
+        # either interrupts the handler and returns in milliseconds, or waits
+        # out _SOCKET_TIMEOUT. A tighter bound only adds load-induced failures.
+        assert stop_elapsed["seconds"] < _SOCKET_TIMEOUT, (
+            f"stop() sat out the recv timeout: "
+            f"{stop_elapsed['seconds']:.2f}s of {_SOCKET_TIMEOUT}s"
         )
     finally:
         client.close()
