@@ -16,8 +16,12 @@ class DbObject:
 
     def get_prop(self, name: str) -> object:
         if name not in self._SLOTS:
+            # Name the slots that do exist. Driving this mock is mostly
+            # probing it, and a refusal that lists the alternatives turns
+            # each wrong guess into the documentation it was after.
             raise SkillError(
-                f"{type(self).__name__} has no slot '{name}'")
+                f"{type(self).__name__} has no slot '{name}'; "
+                f"it has {', '.join(self._SLOTS)}")
         value = getattr(self, "_slot_" + name, NIL)
         return value
 

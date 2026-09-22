@@ -370,3 +370,28 @@ def test_opening_for_read_keeps_what_is_there():
     first.shapes.append(Shape("rect", "met1", "drawing", bbox=[[0.0, 0.0], [1.0, 1.0]]))
 
     assert len(design.open_cellview("LIB", "CELL", "layout", "maskLayout", "r").shapes) == 1
+
+
+def test_an_unknown_slot_names_the_slots_that_exist():
+    """Loud is not enough; a refusal should say what would have worked.
+
+    An agent probing `viaDef~>defWidth` learns only that it guessed wrong.
+    Listing the slots turns each miss into the documentation it was looking
+    for, which is most of what driving this mock consists of.
+    """
+    from mock_virtuoso.db.objects import ViaDef
+
+    via_def = ViaDef("M1_M2", "met1", "met2")
+    with pytest.raises(SkillError) as excinfo:
+        via_def.get_prop("defWidth")
+    message = str(excinfo.value)
+    assert "defWidth" in message
+    for slot in ("objType", "name", "layer1", "layer2"):
+        assert slot in message, f"{slot} should be offered as an alternative"
+
+
+def test_a_cellview_lists_its_own_slots_too():
+    design = Design()
+    cv = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    with pytest.raises(SkillError, match="shapes"):
+        cv.get_prop("noSuchSlot")
