@@ -134,10 +134,13 @@ let drag=null;
 cv.addEventListener("mousedown",e=>drag={px:e.offsetX,py:e.offsetY,vx:view.x,vy:view.y});
 addEventListener("mouseup",()=>drag=null);
 cv.addEventListener("mousemove",e=>{
-  $("hudX").textContent=wx(e.offsetX).toFixed(3);
-  $("hudY").textContent=wy(e.offsetY).toFixed(3);
+  // Pan first. The readout is optional decoration and used not to be: writing
+  // to a #hudX that a host page did not have threw here, and the drag below
+  // never ran — zoom worked, panning did not, and nothing said why.
   if(drag){view.x=drag.vx-(e.offsetX-drag.px)/view.s;
            view.y=drag.vy+(e.offsetY-drag.py)/view.s; draw();}
+  if($("hudX")) $("hudX").textContent=wx(e.offsetX).toFixed(3);
+  if($("hudY")) $("hudY").textContent=wy(e.offsetY).toFixed(3);
 });
 cv.addEventListener("wheel",e=>{
   e.preventDefault();
