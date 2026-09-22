@@ -14,6 +14,7 @@ identifier never reaches the bridge.
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import re
 import urllib.request
@@ -66,12 +67,70 @@ def _hermes_key() -> str | None:
     return None
 
 
+# Ports an OpenAI-compatible server is commonly brought up on here. The planner
+# used to hardcode one; a server running on any of the others was invisible,
+# and every request fell to the rules planner with nothing saying why.
+CANDIDATE_ENDPOINTS = ("http://127.0.0.1:8642", "http://127.0.0.1:8643",
+                       "http://127.0.0.1:8644", "http://127.0.0.1:8700")
+
+
+# A dedicated endpoint beats a discovered one: pin the planner to a server and
+# model chosen for this job and it stops depending on what happens to be up.
+# Discovery stays as the fallback, so an unconfigured checkout still works.
+#
+#   VB_PLANNER_URL=http://127.0.0.1:8644   VB_PLANNER_MODEL=mi-report
+#
+ENDPOINT_ENV, MODEL_ENV = "VB_PLANNER_URL", "VB_PLANNER_MODEL"
+
+
+def configured_planner() -> tuple[str, str] | None:
+    """The endpoint and model this deployment was told to use, if any."""
+    base = os.environ.get(ENDPOINT_ENV, "").strip()
+    model = os.environ.get(MODEL_ENV, "").strip()
+    return (base, model) if base and model else None
+
+
+def _list_models(base: str, timeout: int = 5) -> dict:
+    key = _hermes_key()
+    req = urllib.request.Request(
+        base.rstrip("/") + "/v1/models",
+        headers={"Authorization": f"Bearer {key}"} if key else {})
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        return json.load(response)
+
+
+def discover_planner(bases=CANDIDATE_ENDPOINTS, prefer: str | None = None
+                     ) -> tuple[str, str] | None:
+    """The first endpoint that answers, and a model it actually serves.
+
+    Asking beats assuming: the configured model may not be the one running,
+    and a planner that quietly falls back because it looked in one place is
+    indistinguishable from no planner at all.
+    """
+    for base in bases:
+        try:
+            listed = [m.get("id") for m in _list_models(base).get("data", [])]
+        except Exception:                                      # noqa: BLE001
+            continue
+        listed = [m for m in listed if m]
+        if not listed:
+            continue
+        return base, (prefer if prefer in listed else listed[0])
+    return None
+
+
 def plan_with_hermes(text: str, timeout: int = 90) -> tuple[dict | None, str]:
     key = _hermes_key()
     if not key:
         return None, "no hermes API key"
+    found = configured_planner() or discover_planner(prefer=HERMES["model"])
+    if found is None:
+        return None, ("no planner is reachable; set "
+                      f"{ENDPOINT_ENV} and {MODEL_ENV} to pin one")
+    base, model = found
+    HERMES["url"], HERMES["model"] = base.rstrip("/") + "/v1/chat/completions", model
     body = json.dumps({
-        "model": HERMES["model"], "temperature": 0, "max_tokens": 1200,
+        "model": model, "temperature": 0, "max_tokens": 1200,
         "messages": [{"role": "system", "content": PLAN_SCHEMA},
                      {"role": "user", "content": text}],
     }).encode()
@@ -186,9 +245,24 @@ def validate(plan: dict) -> dict:
     ops = plan.get("ops") or []
     if not isinstance(ops, list) or len(ops) > MAX_OPS:
         raise PlanError(f"ops must be a list of at most {MAX_OPS}")
+
+    # A planner keeps putting the `then` block inside `ops` instead of beside
+    # it — a lone {"then": {...}} as the last entry. There is one reading of
+    # that, so lift it rather than refusing the whole plan over a nesting
+    # slip. Anything else in `ops` that is not an op is still refused below.
+    then = plan.get("then")
+    kept = []
+    for o in ops:
+        if isinstance(o, dict) and set(o) == {"then"}:
+            if then:
+                raise PlanError("plan has two `then` blocks, one nested inside ops")
+            then = o["then"]
+            continue
+        kept.append(o)
+    ops = kept
+
     for i, o in enumerate(ops):
         out["ops"].append(_validate_op(o, f"ops[{i}]"))
-    then = plan.get("then")
     if then:
         t_ops = then.get("ops") or []
         if len(t_ops) > MAX_OPS:
