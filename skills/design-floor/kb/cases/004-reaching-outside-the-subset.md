@@ -3,6 +3,7 @@ id: 004-reaching-outside-the-subset
 outcome: failure
 signature: "unknown function"
 lanes: all
+audience: agent
 rule: "`while` `println` `copy` `equal` `makeTable` and `ddGetLibList` are not here"
 rule_in: SKILL.md
 ---

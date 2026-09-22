@@ -2,6 +2,7 @@
 id: 016-a-readout-that-blocked-the-pan
 outcome: failure
 lanes: request
+audience: floor
 rule: "The readout is optional decoration and used not to be"
 rule_in: code
 ---

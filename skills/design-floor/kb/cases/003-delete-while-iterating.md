@@ -2,6 +2,7 @@
 id: 003-delete-while-iterating
 outcome: failure
 lanes: power, top, cells
+audience: agent
 rule: "builds a list and hands it over"
 rule_in: code
 ---

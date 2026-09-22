@@ -2,6 +2,7 @@
 id: 008-numbers-that-went-stale
 outcome: failure
 lanes: verify, top
+audience: agent
 rule: "The number a colleague quoted may be from before their last edit"
 rule_in: SKILL.md
 ---

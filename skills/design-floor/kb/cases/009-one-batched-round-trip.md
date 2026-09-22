@@ -2,6 +2,7 @@
 id: 009-one-batched-round-trip
 outcome: success
 lanes: cells, analog
+audience: agent
 rule: "none"
 rule_in: none
 ---

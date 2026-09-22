@@ -8,6 +8,7 @@ escapes its quoting is arbitrary code against the design.
 """
 
 import importlib
+import json
 
 import pytest
 
@@ -445,3 +446,86 @@ def test_a_half_configured_planner_is_ignored(monkeypatch):
     monkeypatch.setenv("VB_PLANNER_URL", "http://pinned:9000")
     monkeypatch.delenv("VB_PLANNER_MODEL", raising=False)
     assert api.configured_planner() is None
+
+
+# -- a refusal goes back to the model -------------------------------------
+
+def test_a_refused_plan_is_sent_back_with_the_reason(monkeypatch):
+    """The validator already said what was wrong; it used to tell only the user.
+
+    A 40-second plan was thrown away over a `then` block nested one level too
+    deep — a slip the model could have fixed if anyone had shown it the
+    refusal.
+    """
+    seen = []
+
+    def planner(text, timeout=90, feedback=""):
+        seen.append(feedback)
+        if feedback:
+            return {"lib": "L", "cell": "C",
+                    "ops": [{"op": "rect", "layer": "met1",
+                             "x0": 0, "y0": 0, "x1": 1, "y1": 1}]}, "hermes"
+        return {"lib": "L", "cell": "C", "ops": [{"op": "nonsense"}]}, "hermes"
+
+    monkeypatch.setattr(api, "plan_with_hermes", planner)
+    plan, used = api.plan_and_validate("draw something")
+    assert plan["cell"] == "C"
+    assert used == "hermes (retried)", "a retried plan should not read as a clean one"
+    assert seen == ["", ] + [seen[1]]
+    assert "refused" in seen[1] and "unsupported op" in seen[1]
+
+
+def test_the_feedback_carries_what_the_knowledge_base_knows():
+    """Retrieval is exact: the case is named, so the citation can be checked."""
+    feedback = api.refusal_feedback(api.PlanError('height must be a number, got "roman"'))
+    assert "seen this failure before" in feedback
+    assert "012-" in feedback
+
+
+def test_a_refusal_with_no_recorded_case_still_reports_the_refusal():
+    feedback = api.refusal_feedback(api.PlanError("ops[2]: unsupported op None"))
+    assert "unsupported op None" in feedback
+    assert "seen this failure before" not in feedback
+
+
+def test_a_plan_refused_twice_is_refused(monkeypatch):
+    """One retry, not a loop. A model that cannot fix it will not on try nine."""
+    calls = []
+
+    def planner(text, timeout=90, feedback=""):
+        calls.append(feedback)
+        return {"lib": "L", "cell": "C", "ops": [{"op": "nonsense"}]}, "hermes"
+
+    monkeypatch.setattr(api, "plan_with_hermes", planner)
+    with pytest.raises(api.PlanError):
+        api.plan_and_validate("draw something")
+    assert len(calls) == 2, "exactly one retry"
+
+
+def test_no_model_means_the_rules_planner_not_a_retry(monkeypatch):
+    monkeypatch.setattr(api, "plan_with_hermes",
+                        lambda *a, **k: (None, "no planner is reachable"))
+    plan, used = api.plan_and_validate("NAND2 셀을 만들고 ROW에 4개 배치해줘")
+    assert used.startswith("rules") and plan["ops"]
+
+
+def test_the_guidance_block_is_in_the_system_prompt(monkeypatch):
+    """The lesson has to arrive with the request, not sit in a file."""
+    sent = {}
+
+    class Response:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return json.dumps({"choices": [{"message": {"content": "{}"}}]}).encode()
+
+    def urlopen(req, timeout=None):
+        sent["body"] = json.loads(req.data)
+        return Response()
+
+    monkeypatch.setattr(api, "configured_planner",
+                        lambda: ("http://x", "m", "k"))
+    monkeypatch.setattr(api.urllib.request, "urlopen", urlopen)
+    api.plan_with_hermes("draw an inverter")
+    system = sent["body"]["messages"][0]["content"]
+    assert "Lessons this floor has already paid for" in system
+    assert "MY` mirrors about the origin" in system

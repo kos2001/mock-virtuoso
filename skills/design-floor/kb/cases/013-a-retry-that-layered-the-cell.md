@@ -2,6 +2,7 @@
 id: 013-a-retry-that-layered-the-cell
 outcome: failure
 lanes: gates
+audience: agent
 rule: "A failed call is not a no-op"
 rule_in: SKILL.md
 ---

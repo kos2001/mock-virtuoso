@@ -2,6 +2,7 @@
 id: 011-the-database-is-a-process
 outcome: failure
 lanes: gates
+audience: agent
 rule: "The design database lives in the running daemon and does not survive a restart"
 rule_in: SKILL.md
 ---

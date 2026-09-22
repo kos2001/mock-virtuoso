@@ -38,9 +38,7 @@ from toolkit.planner import (
     PlanError,
     answer_text,
     execute,
-    plan_with_hermes,
-    plan_with_rules,
-    validate,
+    plan_and_validate,
 )
 
 from mock_virtuoso.bridge_compat import match_client_auth
@@ -220,16 +218,14 @@ def build_from_request(text: str) -> dict:
     participant here, not a privileged side door.
     """
     started = time.time()
-    plan_raw, planner = plan_with_hermes(text)
-    if plan_raw is None:
-        plan_raw, planner = plan_with_rules(text)
-
+    planner = "hermes"
     try:
-        plan = validate(plan_raw)
+        plan, planner = plan_and_validate(text)
     except PlanError as exc:
-        return {"ok": False, "planner": planner, "plan": plan_raw,
+        return {"ok": False, "planner": planner, "plan": None,
                 "answer": f"Refused the {planner} plan before touching the design: {exc}\n"
-                          "Nothing was executed."}
+                          "It was sent back once with that reason and still did not "
+                          "validate. Nothing was executed."}
 
     assert REQUEST_CLIENT is not None
     try:

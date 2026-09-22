@@ -35,6 +35,8 @@ LAYERS = {"nwell", "diff", "poly", "met1", "met2", "met3", "text"}
 ORIENTS = {"R0", "R90", "R180", "R270", "MX", "MY", "MXR90", "MYR90"}
 MAX_OPS = 80
 
+from toolkit.precedent import guidance_block, precedent_block
+
 PLAN_SCHEMA = (
     "You translate analog-layout requests into a JSON plan. Reply with JSON ONLY, no prose.\n"
     'Schema: {"lib":"<library>","cell":"<name>","ops":[ ... ]}\n'
@@ -175,7 +177,15 @@ def discover_planner(bases=CANDIDATE_ENDPOINTS, prefer: str | None = None
     return None
 
 
-def plan_with_hermes(text: str, timeout: int = 90) -> tuple[dict | None, str]:
+def plan_with_hermes(text: str, timeout: int = 90,
+                     feedback: str = "") -> tuple[dict | None, str]:
+    """A plan from the model, optionally answering a refusal of its last one.
+
+    `feedback` is the validator's own words plus whatever the knowledge base
+    knows about that failure. It is sent as a second turn rather than folded
+    into the request, because the model needs to see that the request did not
+    change — only its answer was refused.
+    """
     # Resolve first, then ask for a key. A profile brings its own, so the
     # absence of a global one is not on its own a reason to give up.
     found = configured_planner() or discover_planner(prefer=PREFERRED_PROFILE)
@@ -187,10 +197,18 @@ def plan_with_hermes(text: str, timeout: int = 90) -> tuple[dict | None, str]:
     if not key:
         return None, f"no API key for {base}; set {KEY_ENV}"
     HERMES["url"], HERMES["model"] = base.rstrip("/") + "/v1/chat/completions", model
+    # The knowledge base reaches the prompt. Seventeen cases recorded how this
+    # floor fails, and until now a plan was written without sight of any of
+    # them; a lesson nobody reads is a diary entry.
+    guidance = guidance_block()
+    system = PLAN_SCHEMA + ("\n\n" + guidance if guidance else "")
+    messages = [{"role": "system", "content": system},
+                {"role": "user", "content": text}]
+    if feedback:
+        messages.append({"role": "user", "content": feedback})
     body = json.dumps({
         "model": model, "temperature": 0, "max_tokens": 1200,
-        "messages": [{"role": "system", "content": PLAN_SCHEMA},
-                     {"role": "user", "content": text}],
+        "messages": messages,
     }).encode()
     req = urllib.request.Request(HERMES["url"], data=body, headers={
         "Content-Type": "application/json", "Authorization": f"Bearer {key}"})
@@ -383,6 +401,47 @@ def _emit(op: dict, lib: str) -> str:
     # operation silently, which is the one failure mode this whole project exists
     # to eliminate.
     raise PlanError(f"no builder for validated op {op['op']!r}")
+
+
+def plan_and_validate(text: str, retries: int = 1) -> tuple[dict, str]:
+    """A validated plan, giving the model its refusal back before giving up.
+
+    The validator already says exactly what was wrong — `ops[40]: unsupported
+    op None` — and that sentence used to go only to the user, as the reason
+    nothing was built. A 40-second plan was thrown away over a nesting slip
+    the model could have fixed if anyone had told it.
+
+    Retrying here is safe in a way that retrying a bridge error would not be:
+    validation happens before a single op is executed, so a refused plan
+    leaves the design untouched and there is no half-built cell to retry
+    into. Bridge failures are still final.
+
+    Raises PlanError if the last attempt is still refused.
+    """
+    plan_raw, planner = plan_with_hermes(text)
+    if plan_raw is None:
+        fallback, planner = plan_with_rules(text)
+        return validate(fallback), planner
+    last: PlanError | None = None
+    for attempt in range(retries + 1):
+        try:
+            return validate(plan_raw), planner if attempt == 0 else f"{planner} (retried)"
+        except PlanError as exc:
+            last = exc
+            if attempt == retries:
+                break
+            plan_raw, _ = plan_with_hermes(text, feedback=refusal_feedback(exc))
+            if plan_raw is None:
+                break
+    raise last
+
+
+def refusal_feedback(exc: PlanError) -> str:
+    """The refusal, plus what this floor already knows about that failure."""
+    known = precedent_block(str(exc))
+    return (f"That plan was refused before anything was built: {exc}\n"
+            + (known + "\n" if known else "")
+            + "Send the corrected plan as JSON only. The request is unchanged.")
 
 
 def execute(client, plan: dict) -> dict:

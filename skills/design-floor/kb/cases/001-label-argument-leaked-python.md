@@ -3,6 +3,7 @@ id: 001-label-argument-leaked-python
 outcome: failure
 signature: "unsupported operand type|object is not iterable"
 lanes: analog, power
+audience: agent
 rule: "must be a number, got"
 rule_in: code
 ---
