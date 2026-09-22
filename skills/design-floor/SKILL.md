@@ -52,6 +52,27 @@ vd = techFindViaDefByName(techGetTechFile(cv) "M1_M2")
 dbCreateVia(cv vd 4:3 "R0")
 ```
 
+### Connectivity
+
+A cell's shapes can carry nets, and a net can present terminals and offer pins.
+Until a shape has a net nothing knows which pieces of metal are the same
+signal, and `leMarkNet` has nothing to find.
+
+```
+n = dbCreateNet(cv "VDD")
+dbCreateTerm(n "VDD" "inputOutput")     ; input output inputOutput switch jumper unused
+dbCreatePin(n strap)                    ; strap is a shape you drew
+```
+
+`cv~>nets`, `cv~>terminals`, `net~>pins`, `shape~>net` read it back. Naming a
+net twice returns the one that exists rather than a second of the same name.
+`leMarkNet(list(x y))` returns the net under a point, and **refuses** when no
+shape there carries one — it does not answer `t` for a cell that has no nets.
+
+A label is not a pin. `dbCreateLabel` draws text on the `text` layer and
+nothing more; a cell whose pins are only labels has no connectivity, and an
+instance of it cannot be traced.
+
 ### Checking what you drew
 
 `mockDrcCheck(cv)` returns a list of rule violations for one cellview, empty if

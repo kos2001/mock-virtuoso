@@ -34,6 +34,9 @@ class Session:
         self.palette: dict[tuple[str, str], bool] = {}
         self.active_lpp: tuple[str, str] | None = None
         self.selection: list = []
+        # Nets currently highlighted by leMarkNet, cleared by
+        # leHiUnmarkNet — so a mark is state, not a return value.
+        self.marked_nets: list = []
         self.artifact_dir = (
             Path(artifact_dir) if artifact_dir
             else Path(tempfile.gettempdir()) / "mock-virtuoso")

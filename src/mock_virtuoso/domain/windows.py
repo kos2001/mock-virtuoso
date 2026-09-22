@@ -6,7 +6,7 @@ from pathlib import Path
 
 from mock_virtuoso.db.objects import Instance, Shape
 from mock_virtuoso.skill.errors import SkillError
-from mock_virtuoso.skill.values import NIL, TRUE, is_truthy
+from mock_virtuoso.skill.values import NIL, TRUE, is_truthy, skill_repr
 
 # 1x1 투명 PNG. hiWindowSaveImage가 실제 파일을 써야 하기 때문에 필요하다.
 _PNG_1X1 = bytes.fromhex(
@@ -149,6 +149,44 @@ def install(session) -> None:
                 session.selection.append(figure)
         return TRUE
 
+    def le_mark_net(it, args, kwargs):
+        """Highlight the net under a point, or say there is none.
+
+        This used to be `accept` — `t` for every point, including points in
+        an empty cell of a design with no nets at all. The bridge's
+        net-highlight op reports "highlighted net: VDD" from that, which is
+        the `csh` failure: a call that always succeeds teaches an agent it
+        did something. Now it finds the net or refuses and says why.
+        """
+        cv = current_cellview()
+        if cv is None:
+            raise SkillError("leMarkNet: no cellview is open in a window")
+        point = args[0] if args else NIL
+        try:
+            x, y = float(point[0]), float(point[1])
+        except (TypeError, ValueError, IndexError):
+            raise SkillError(
+                f"leMarkNet: expected a point like list(x y), got {skill_repr(point)}")
+        if not cv.get_prop("nets"):
+            raise SkillError(
+                f"leMarkNet: {cv.get_prop('libName')}/{cv.get_prop('cellName')} "
+                "has no nets; dbCreateNet and dbCreatePin give its shapes one")
+        for shape in cv.shapes:
+            net = shape.get_prop("net")
+            if net is NIL:
+                continue
+            (x0, y0), (x1, y1) = shape.bbox
+            if min(x0, x1) <= x <= max(x0, x1) and min(y0, y1) <= y <= max(y0, y1):
+                if net not in session.marked_nets:
+                    session.marked_nets.append(net)
+                return net
+        raise SkillError(
+            f"leMarkNet: no shape carrying a net covers ({x:g} {y:g})")
+
+    def le_hi_unmark_net(it, args, kwargs):
+        session.marked_nets.clear()
+        return TRUE
+
     def ge_add_select_box(it, args, kwargs):
         return ge_select_area(it, [args[1]], kwargs)
 
@@ -225,8 +263,8 @@ def install(session) -> None:
         ("geSelectAllFig", ge_select_all_fig),
         ("geDeselectAllFig", ge_deselect_all_fig),
         ("leHiDelete", le_hi_delete),
-        ("leMarkNet", accept),
-        ("leHiUnmarkNet", accept),
+        ("leMarkNet", le_mark_net),
+        ("leHiUnmarkNet", le_hi_unmark_net),
         ("pteSetVisible", pte_set_visible),
         ("pteSetNoneVisible", pte_set_none_visible),
         ("pteSetAllVisible", pte_set_all_visible),
