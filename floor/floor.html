@@ -50,6 +50,8 @@ h2{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)
 .canvas{flex:1;position:relative;min-height:0}
 canvas{display:block;width:100%;height:100%;cursor:grab}
 canvas:active{cursor:grabbing}
+#lost{background:#3d1417;color:#ffb3ad;border-bottom:1px solid #6e2a2a;
+  padding:5px 14px;font-size:11.5px}
 .ask{display:flex;gap:7px;padding:8px 10px;border-top:1px solid var(--edge);background:var(--panel)}
 .ask input{flex:1;background:#0b1017;border:1px solid var(--edge);border-radius:5px;
   color:var(--ink);padding:7px 10px;font:inherit}
@@ -94,6 +96,8 @@ canvas:active{cursor:grabbing}
   <div id="aboutSlot" style="margin-left:12px"></div>
 </header>
 
+<div id="lost" hidden></div>
+
 <main>
   <div class="col left">
     <h2>Agents</h2>
@@ -135,6 +139,19 @@ canvas:active{cursor:grabbing}
 <script src="/render.js"></script>
 <script src="/about.js"></script>
 <script>
+// A page that failed to load its scripts renders the empty transcript and sits
+// there looking like it is waiting for an agent. It has been read as an error
+// twice, and both times the truth was worse: nothing was running at all.
+if (typeof draw !== "function" || typeof mountAbout !== "function") {
+  document.getElementById("feed").innerHTML =
+    `<div class="empty"><div class="wait" style="color:var(--err)">` +
+    `This page did not finish loading.</div><p>` +
+    `<code>/render.js</code> or <code>/about.js</code> did not arrive, so nothing ` +
+    `below is live — what you see is not an empty floor, it is a broken page. ` +
+    `Check the server's log and reload.</p></div>`;
+  throw new Error("floor: required scripts missing");
+}
+
 const LANE_COLOR = {cells:"#4493f8", analog:"#bc8cff", power:"#f85149",
                     top:"#e3b341", verify:"#3fb950"};
 // Lanes come from whatever briefs exist, so a job can bring its own. An
@@ -145,7 +162,7 @@ const color = l => LANE_COLOR[l] ||
   SPARE[[...l].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % SPARE.length];
 const esc = s => (s||"").replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
 
-let seq = 0, current = null, cells = [], pending = false, lastEventAt = 0;
+let seq = 0, current = null, cells = [], pending = false, lastEventAt = 0, lost = 0;
 
 function renderEmptyHint(lanes){
   const el = $("emptyCmds");
@@ -210,6 +227,7 @@ async function poll(){
     const fresh = f.events || [];
     seq = f.seq;
     $("stOps").textContent = seq;
+    document.getElementById("lost").hidden = true;
     renderLanes(f.lanes || {});
     renderEmptyHint(f.lanes || {});
     appendEvents(fresh);
@@ -225,7 +243,16 @@ async function poll(){
       pending = true;
       setTimeout(() => { pending = false; load(fresh.some(e => e.skill.includes("dbCreate"))); }, 250);
     }
-  } catch(e){ /* floor still starting, or reloading */ }
+    lost = 0;
+  } catch(e){
+    // One miss is a restart or a reload; several in a row is the server gone,
+    // and a transcript that simply stops growing gives no hint of that.
+    if (++lost === 5) {
+      const bar = document.getElementById("lost");
+      bar.hidden = false;
+      bar.textContent = "lost contact with the floor — retrying";
+    }
+  }
   setTimeout(poll, 700);
 }
 
