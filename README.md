@@ -178,6 +178,38 @@ ROW        : I0 NAND2 R0 ((-0.2 0.0) (4.2 4.2))
 `demo/agent_sandbox.py` removes the tunnel-state file on exit, so the bridge stops
 believing a local Virtuoso is present once you stop the sandbox.
 
+## Agent design floor (`floor/`)
+
+`floor/design_floor.py` puts several agents to work in **one** design database and
+makes the process watchable:
+
+```bash
+.venv/bin/python floor/design_floor.py     # then open http://127.0.0.1:8900
+```
+
+One mock holds the design, the way one CIW session would. Each agent gets a *lane* —
+a recording proxy standing where the daemon's port would be — and drives it with the
+shipped CLI, unmodified:
+
+```bash
+virtuoso-bridge eval --env floor/lanes.env -p cells '<SKILL>'
+```
+
+`lanes.env` is generated at startup and simply points each bridge profile at its
+lane's port (`VB_REMOTE_HOST_<lane>=localhost`), so the CLI resolves local mode
+exactly as it would against a local Virtuoso. Nothing about the agent's tooling is
+special-cased for the mock.
+
+The observatory at `:8900` shows three things side by side: which agent is doing
+what, the full SKILL transcript with every reply, and the layout redrawn from the
+database as it grows. Recording happens **on the wire**, not inside the mock —
+`mock_virtuoso` is imported only to start the daemon — so the transcript is exactly
+what a real Virtuoso would have received. The observatory reads the database
+through its own direct connection, which keeps its polling out of the agents'
+transcript.
+
+The canvas is `webapp/render.js`, shared with the workbench.
+
 ## Natural-language API (`hermes/`)
 
 `hermes/virtuoso_api_server.py` is an **OpenAI-compatible** server that turns a plain

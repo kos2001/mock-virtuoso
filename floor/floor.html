@@ -1,0 +1,190 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Agent Design Floor — mock-virtuoso</title>
+<link rel="icon" href="/favicon.svg">
+<style>
+:root{
+  --bg:#0d1117; --panel:#131920; --edge:#222b36; --ink:#e6edf3; --dim:#8b949e;
+  --ok:#3fb950; --err:#f85149; --hi:#4493f8;
+  --cells:#4493f8; --analog:#bc8cff; --top:#e3b341;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+     font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;
+     height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:12px;padding:9px 14px;
+       border-bottom:1px solid var(--edge);background:var(--panel)}
+header img{width:22px;height:22px}
+header h1{font-size:13px;margin:0;font-weight:600;letter-spacing:.2px}
+header .sub{color:var(--dim);font-size:11px}
+header .right{margin-left:auto;color:var(--dim);font-size:11px}
+main{flex:1;display:grid;grid-template-columns:232px 1fr 430px;min-height:0}
+.col{display:flex;flex-direction:column;min-height:0;min-width:0}
+.col.left{border-right:1px solid var(--edge);background:var(--panel)}
+.col.right{border-left:1px solid var(--edge);background:var(--panel)}
+h2{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);
+   margin:0;padding:10px 12px 6px}
+.lane{padding:8px 12px;border-bottom:1px solid var(--edge)}
+.lane .nm{display:flex;align-items:center;gap:7px;font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:#30363d;flex:none}
+.lane.live .dot{box-shadow:0 0 0 3px rgba(68,147,248,.18)}
+.lane .role{color:var(--dim);font-size:11px;margin:2px 0 5px}
+.lane .stats{display:flex;gap:10px;font-size:11px;color:var(--dim)}
+.lane .stats b{color:var(--ink);font-weight:600}
+.lane .last{margin-top:4px;font-size:10.5px;color:#6e7681;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#lsw{padding:2px 8px 10px}
+.layer{display:flex;align-items:center;gap:7px;padding:2px 4px;cursor:pointer;border-radius:3px}
+.layer:hover{background:#1b2430}
+.layer.off{opacity:.34}
+.layer .sw{width:11px;height:11px;border-radius:2px;flex:none}
+.layer .nm{flex:1;font-size:11px}
+.layer .ct{color:var(--dim);font-size:10.5px}
+.tabs{display:flex;gap:4px;padding:7px 10px;border-bottom:1px solid var(--edge);
+      overflow-x:auto;background:var(--panel)}
+.tab{padding:3px 9px;border:1px solid var(--edge);border-radius:4px;cursor:pointer;
+     white-space:nowrap;font-size:11.5px;color:var(--dim);background:transparent}
+.tab:hover{color:var(--ink)}
+.tab.on{background:#1b2430;color:var(--ink);border-color:#31405266}
+.tab i{font-style:normal;margin-right:5px}
+.canvas{flex:1;position:relative;min-height:0}
+canvas{display:block;width:100%;height:100%;cursor:grab}
+canvas:active{cursor:grabbing}
+.status{display:flex;gap:14px;padding:6px 12px;border-top:1px solid var(--edge);
+        color:var(--dim);font-size:11px;background:var(--panel)}
+.status b{color:var(--ink);font-weight:600}
+#feed{flex:1;overflow:auto;padding:4px 0 10px}
+.ev{padding:4px 11px;border-bottom:1px solid #161d26}
+.ev .hd{display:flex;gap:7px;align-items:baseline;font-size:10.5px;color:var(--dim)}
+.chip{padding:0 6px;border-radius:9px;font-size:10px;font-weight:600;color:#0d1117}
+.ev .sk{margin-top:2px;white-space:pre-wrap;word-break:break-word;font-size:11.5px}
+.ev .rp{margin-top:2px;font-size:11px;color:var(--ok);white-space:pre-wrap;
+        word-break:break-word;max-height:4.6em;overflow:hidden}
+.ev.bad .rp{color:var(--err)}
+.empty{padding:22px 14px;color:var(--dim);font-size:11.5px;line-height:1.7}
+.empty code{color:var(--hi)}
+</style>
+
+<header>
+  <img src="/favicon.svg" alt="">
+  <div>
+    <h1>Agent Design Floor</h1>
+    <div class="sub">agents → virtuoso-bridge → one mock Virtuoso design database</div>
+  </div>
+  <div class="right">every line below crossed the wire as SKILL</div>
+</header>
+
+<main>
+  <div class="col left">
+    <h2>Agents</h2>
+    <div id="lanes"></div>
+    <h2>Layers</h2>
+    <div id="lsw"></div>
+  </div>
+
+  <div class="col">
+    <div class="tabs" id="tabs"></div>
+    <div class="canvas"><canvas id="cv"></canvas></div>
+    <div class="status">
+      <div>cell <b id="stCell">—</b></div>
+      <div>shapes <b id="hudShapes">0</b></div>
+      <div>instances <b id="hudInsts">0</b></div>
+      <div>ops <b id="stOps">0</b></div>
+      <div style="margin-left:auto">drag to pan · wheel to zoom</div>
+    </div>
+  </div>
+
+  <div class="col right">
+    <h2>SKILL transcript</h2>
+    <div id="feed"><div class="empty">
+      No agent has connected yet.<br><br>
+      Each agent drives the shipped CLI:<br>
+      <code>virtuoso-bridge eval --env floor/lanes.env -p &lt;lane&gt; '&lt;SKILL&gt;'</code>
+    </div></div>
+  </div>
+</main>
+
+<script src="/render.js"></script>
+<script>
+const LANE_COLOR = {cells:"#4493f8", analog:"#bc8cff", top:"#e3b341"};
+const color = l => LANE_COLOR[l] || "#8b949e";
+const esc = s => (s||"").replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
+
+let seq = 0, current = null, cells = [], pending = false, lastEventAt = 0;
+
+function renderLanes(lanes){
+  const now = Date.now();
+  $("lanes").innerHTML = Object.entries(lanes).map(([name, l]) => `
+    <div class="lane${now - lastEventAt < 2500 && l.last ? " live" : ""}">
+      <div class="nm"><span class="dot" style="background:${color(name)}"></span>${esc(name)}</div>
+      <div class="role">${esc(l.role || "")}</div>
+      <div class="stats"><span>ops <b>${l.ops}</b></span>
+        <span>errors <b style="color:${l.errors ? "var(--err)" : "inherit"}">${l.errors}</b></span>
+        <span>${l.ms.toFixed(0)} ms</span></div>
+      ${l.last ? `<div class="last">${esc(l.last)}</div>` : ""}
+    </div>`).join("");
+}
+
+function renderTabs(){
+  $("tabs").innerHTML = cells.map(c => {
+    const key = `${c.lib}/${c.cell}`;
+    return `<div class="tab${key === current ? " on" : ""}" data-key="${esc(key)}">
+              <i style="color:${color(c.lane)}">●</i>${esc(key)}</div>`;
+  }).join("") || `<div class="tab on">waiting for a cellview…</div>`;
+  for (const t of $("tabs").children)
+    if (t.dataset.key) t.onclick = () => { current = t.dataset.key; renderTabs(); load(true); };
+}
+
+function appendEvents(events){
+  if (!events.length) return;
+  if ($("feed").querySelector(".empty")) $("feed").innerHTML = "";
+  const atBottom = $("feed").scrollTop + $("feed").clientHeight >= $("feed").scrollHeight - 40;
+  $("feed").insertAdjacentHTML("beforeend", events.map(e => `
+    <div class="ev${e.ok ? "" : " bad"}">
+      <div class="hd">
+        <span class="chip" style="background:${color(e.lane)}">${esc(e.lane)}</span>
+        <span>+${e.t.toFixed(2)}s</span><span>${e.ms.toFixed(0)}ms</span>
+      </div>
+      <div class="sk">${esc(e.skill)}</div>
+      <div class="rp">${e.ok ? "▸ " : "✗ "}${esc(e.reply)}</div>
+    </div>`).join(""));
+  if (atBottom) $("feed").scrollTop = $("feed").scrollHeight;
+  lastEventAt = Date.now();
+}
+
+async function load(reFit){
+  if (!current) return;
+  const [lib, cell] = current.split("/");
+  const g = await (await fetch(`/api/geometry?lib=${lib}&cell=${cell}`)).json();
+  rows = g.rows || []; masters = g.masters || {};
+  $("stCell").textContent = current;
+  lsw();
+  if (reFit) fit(); else draw();
+}
+
+async function poll(){
+  try{
+    const f = await (await fetch(`/api/feed?since=${seq}`)).json();
+    const fresh = f.events || [];
+    seq = f.seq;
+    $("stOps").textContent = seq;
+    renderLanes(f.lanes || {});
+    appendEvents(fresh);
+
+    const key = c => `${c.lib}/${c.cell}`;
+    if ((f.cells || []).map(key).join("|") !== cells.map(key).join("|")){
+      cells = f.cells || [];
+      if (!current && cells.length) current = key(cells[cells.length - 1]);
+      renderTabs();
+    }
+    // Only re-read the database when something actually happened on the wire.
+    if (fresh.length && !pending){
+      pending = true;
+      setTimeout(() => { pending = false; load(fresh.some(e => e.skill.includes("dbCreate"))); }, 250);
+    }
+  } catch(e){ /* floor still starting, or reloading */ }
+  setTimeout(poll, 700);
+}
+
+resize(); renderTabs(); poll();
+</script>
