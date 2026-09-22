@@ -265,10 +265,16 @@ def execute(client, plan: dict) -> dict:
         top = plan["then"]["cell"]
         clear_layout(client, lib, top)
         with build_layout(client, lib, top) as ed:
+            # The same builder the first cell uses. Assuming every op here was
+            # a placement is what made a plan that drew a strap over an array
+            # die on KeyError: 'child' — validate accepts rect, path and label
+            # in a `then` block, so execute has to build them.
             for op in plan["then"]["ops"]:
-                ed.add(layout_create_param_inst(lib, op["child"], "layout",
-                                                op["name"], op["x"], op["y"], op["orient"]))
-        done.append(f"{lib}/{top}: {len(plan['then']['ops'])} instances")
+                ed.add(_emit(op, lib))
+        n_in = sum(1 for o in plan["then"]["ops"] if o["op"] == "place")
+        n_sh = len(plan["then"]["ops"]) - n_in
+        done.append(f"{lib}/{top}: {n_in} instances"
+                    + (f", {n_sh} shapes" if n_sh else ""))
         client.open_window(lib, top, view="layout")
 
     # A placement whose master has no geometry is almost always the planner
@@ -277,7 +283,7 @@ def execute(client, plan: dict) -> dict:
     warn: list[str] = []
     placed = {o["child"] for o in plan["ops"] if o["op"] == "place"}
     if plan["then"]:
-        placed |= {o["child"] for o in plan["then"]["ops"]}
+        placed |= {o["child"] for o in plan["then"]["ops"] if o["op"] == "place"}
     for child in sorted(placed):
         r = client.execute_skill(
             f'length(dbOpenCellViewByType("{lib}" "{child}" "layout" "maskLayout" "r")~>shapes)')

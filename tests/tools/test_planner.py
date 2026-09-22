@@ -213,3 +213,50 @@ def test_the_rules_planner_reads_the_cell_and_the_count():
 def test_the_rules_planner_reads_a_cell_name_with_a_particle_attached(request_text, cell):
     plan, _ = api.plan_with_rules(request_text)
     assert api.validate(plan)["cell"] == cell
+
+
+# -- the two halves must agree on what a `then` block may hold ------------
+
+def test_validate_and_execute_agree_on_then_ops():
+    """Whatever validate lets into `then.ops`, execute must be able to build.
+
+    They disagreed: validate accepts rect, path, label and place there, while
+    execute assumed every one was a placement and indexed op["child"]. A plan
+    that drew a power strap over an array — which is a reasonable thing to
+    ask for — reached the bridge and died on KeyError: 'child'.
+    """
+    plan = api.validate({
+        "lib": "SRAM", "cell": "BITCELL",
+        "ops": [rect(layer="diff")],
+        "then": {"cell": "ARRAY", "ops": [
+            {"op": "place", "child": "BITCELL", "name": "B0", "x": 0, "y": 0, "orient": "R0"},
+            rect(layer="met3", y0=4, y1=4.4),
+            {"op": "label", "layer": "text", "x": 1, "y": 5, "text": "WL"},
+        ]},
+    })
+    for op in plan["then"]["ops"]:
+        assert api._emit(op, "SRAM"), f"no builder for a validated then op {op['op']!r}"
+
+
+def test_a_then_block_that_draws_as_well_as_places_builds(api_server):
+    from virtuoso_bridge.virtuoso.layout import (
+        layout_read_geometry,
+        parse_layout_geometry_output,
+    )
+
+    plan = api.validate({
+        "lib": "SRAM", "cell": "BITCELL",
+        "ops": [rect(layer="diff", x1=2, y1=4)],
+        "then": {"cell": "ARRAY", "ops": [
+            {"op": "place", "child": "BITCELL", "name": "B0", "x": 0, "y": 0, "orient": "R0"},
+            {"op": "place", "child": "BITCELL", "name": "B1", "x": 2, "y": 0, "orient": "MY"},
+            rect(layer="met3", x0=0, y0=4, x1=4, y1=4.4),
+        ]},
+    })
+    api.execute(api_server, plan)
+
+    rows = parse_layout_geometry_output(
+        api_server.execute_skill(layout_read_geometry("SRAM", "ARRAY")).output or "")
+    assert sum(1 for r in rows if r.get("kind") == "instance") == 2
+    assert [r["layer"] for r in rows if r.get("kind") == "shape"] == ["met3"], (
+        "the strap the plan asked for should be in the array cell")

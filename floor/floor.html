@@ -62,6 +62,14 @@ canvas:active{cursor:grabbing}
 #said{padding:9px 12px;border-top:1px solid var(--edge);background:#0b1017;
   max-height:190px;overflow:auto;white-space:pre-wrap;font-size:11.5px;line-height:1.6}
 #said.bad{color:var(--err)}
+#said .plan{margin-top:8px}
+#said .plan summary{cursor:pointer;color:var(--dim);font-size:11px;list-style:none}
+#said .plan summary::-webkit-details-marker{display:none}
+#said .plan summary::before{content:"▸ ";color:#6e7681}
+#said .plan[open] summary::before{content:"▾ "}
+#said .plan summary:hover{color:var(--ink)}
+#said .plan pre{margin:6px 0 0;padding:8px 10px;background:#0f151d;border:1px solid var(--edge);
+  border-radius:5px;color:var(--hi);font-size:11px}
 #said .who{color:var(--dim);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
   margin-bottom:5px}
 .status{display:flex;gap:14px;padding:6px 12px;border-top:1px solid var(--edge);
@@ -78,6 +86,14 @@ canvas:active{cursor:grabbing}
 .empty{padding:20px 14px;color:var(--dim);font-size:11.5px;line-height:1.65}
 .empty p{margin:10px 0 12px}
 .empty .wait{display:flex;align-items:center;gap:8px;color:var(--ink);font-weight:600}
+.empty .stages{list-style:none;margin:10px 0 0;padding:0}
+.empty .stages li{padding:2px 0 2px 20px;position:relative;color:#6e7681}
+.empty .stages li::before{content:"○";position:absolute;left:2px}
+.empty .stages li.now{color:var(--ink)}
+.empty .stages li.now::before{content:"◐";color:var(--hi)}
+.empty .stages li.done{color:var(--ok)}
+.empty .stages li.done::before{content:"●";color:var(--ok)}
+.empty .clock{margin-top:9px;color:#6e7681;font-size:11px}
 .empty details{margin-top:4px}
 .empty summary{cursor:pointer;color:var(--dim);font-size:11px;list-style:none}
 .empty summary::-webkit-details-marker{display:none}
@@ -170,6 +186,10 @@ const color = l => LANE_COLOR[l] ||
 const esc = s => (s||"").replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
 
 let seq = 0, current = null, cells = [], pending = false, lastEventAt = 0, lost = 0;
+// A build can take a minute. Nothing here invents progress: the stage moves
+// when a real signal arrives — SKILL reaching the wire, a cell appearing in
+// the database — and the elapsed clock is just a clock.
+let task = null, taskTimer = null;
 
 function renderEmptyHint(lanes){
   const el = $("emptyCmds");
@@ -189,6 +209,45 @@ function renderLanes(lanes){
         <span>${l.ms.toFixed(0)} ms</span></div>
       ${l.last ? `<div class="last">${esc(l.last)}</div>` : ""}
     </div>`).join("");
+}
+
+// What the validator let through, which is what actually ran. Worth showing:
+// the model proposed this, and nothing it proposed outside these ops and
+// layers ever reached the bridge.
+function planSummary(plan){
+  if (!plan || !plan.ops) return "";
+  const rows = [];
+  const count = ops => {
+    const by = {};
+    for (const o of ops) by[o.op] = (by[o.op] || 0) + 1;
+    return Object.entries(by).map(([k, v]) => `${v}× ${k}`).join(", ");
+  };
+  rows.push(`${plan.lib}/${plan.cell} — ${count(plan.ops)}`);
+  if (plan.then && plan.then.ops.length)
+    rows.push(`${plan.lib}/${plan.then.cell} — ${count(plan.then.ops)}`);
+  return `<details class="plan"><summary>the plan the validator allowed</summary>` +
+         `<pre>${esc(rows.join("\n"))}</pre></details>`;
+}
+
+function renderTask(){
+  if (!task) return;
+  const el = $("empty");
+  if (!el) return;                         // events arrived; the panel is gone
+  const secs = ((Date.now() - task.startedAt) / 1000).toFixed(1);
+  const stages = [
+    ["plan",  "planning",   task.stage !== "plan"],
+    ["build", `building${task.calls ? ` — ${task.calls} SKILL calls` : ""}`,
+              task.stage === "read" || task.stage === "done"],
+    ["read",  "reading the design back", task.stage === "done"],
+  ];
+  el.innerHTML =
+    `<div class="wait"><span class="pulse"></span>${esc(task.text)}</div>` +
+    `<ol class="stages">` + stages.map(([id, label, done]) =>
+      `<li class="${done ? "done" : task.stage === id ? "now" : ""}">${label}</li>`).join("") +
+    `</ol><div class="clock">${secs}s` +
+    (task.stage === "plan"
+      ? ` · a language model is writing the plan; 20–40s is normal`
+      : "") + `</div>`;
 }
 
 function renderTabs(){
@@ -240,10 +299,26 @@ async function poll(){
     appendEvents(fresh);
 
     const key = c => `${c.lib}/${c.cell}`;
-    if ((f.cells || []).map(key).join("|") !== cells.map(key).join("|")){
+    const grew = (f.cells || []).map(key).join("|") !== cells.map(key).join("|");
+    if (grew){
       cells = f.cells || [];
       if (!current && cells.length) current = key(cells[cells.length - 1]);
       renderTabs();
+    }
+
+    if (task){
+      // SKILL on the wire means the planner is done and the build has begun.
+      if (fresh.some(e => e.lane === "request")){
+        task.stage = "build";
+        task.calls += fresh.filter(e => e.lane === "request").length;
+      }
+      // A cell appearing is worth showing at once rather than at the end.
+      if (grew && cells.length){
+        current = key(cells[cells.length - 1]);
+        renderTabs();
+        await load(true);
+      }
+      renderTask();
     }
     // Only re-read the database when something actually happened on the wire.
     if (fresh.length && !pending){
@@ -273,14 +348,30 @@ $("ask").onsubmit = async e => {
   $("said").hidden = false;
   $("said").className = "";
   $("said").innerHTML = `<div class="who">planning…</div>`;
+
+  // A new task gets a fresh transcript. The lane counters stay cumulative
+  // because they are the server's, but what is on screen should be this
+  // task's calls — scrolling past someone else's build to find your own is
+  // what made the panel hard to read.
+  const from = await (await fetch("/api/feed?since=0")).json().catch(() => ({seq}));
+  seq = from.seq ?? seq;
+  $("feed").innerHTML = `<div class="empty" id="empty"></div>`;
+  task = {text, startedAt: Date.now(), stage: "plan", calls: 0};
+  renderTask();
+  clearInterval(taskTimer);
+  taskTimer = setInterval(renderTask, 100);
   try {
     const r = await (await fetch("/api/request", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({text}),
     })).json();
     $("said").className = r.ok ? "" : "bad";
+    const how = r.ok ? ""
+      : (r.answer || "").startsWith("Refused") ? " — refused before building"
+      : " — failed while building";
     $("said").innerHTML = `<div class="who">${esc(r.planner || "")} planner` +
-      `${r.ok ? "" : " — refused"}</div>` + esc(r.answer || "");
+      `${how}</div>` + esc(r.answer || "") + planSummary(r.plan);
+    if (task) { task.stage = "read"; renderTask(); }
     if (r.ok && r.cells && r.cells.length) {
       const last = r.cells[r.cells.length - 1];
       current = `${last.lib}/${last.cell}`;
@@ -290,6 +381,8 @@ $("ask").onsubmit = async e => {
     $("said").className = "bad";
     $("said").textContent = String(err);
   } finally {
+    clearInterval(taskTimer);
+    if (task) { task.stage = "done"; renderTask(); task = null; }
     $("go").disabled = false;
   }
 };
