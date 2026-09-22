@@ -88,8 +88,11 @@ success you have not read back.
   in your report; they are what the next agent works from.
 - **Measure, do not assume.** When you need a cell's size, read its `bBox`. The
   number a colleague quoted may be from before their last edit.
-- If the cell you own already has content when you start, clear it first rather
-  than layering a second design over the first.
+- **Clear before every build, not just the first.** If the cell you own has
+  content in it, empty it before drawing — and that includes your own second
+  attempt. A retry that skips this layers a whole cell on top of the last one:
+  the shapes are identical so it still looks right, and only the count gives it
+  away. Read the count back and compare it to what you drew.
 
 ## What the session keeps
 
