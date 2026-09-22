@@ -3,6 +3,7 @@ id: 002-guessing-object-slots
 outcome: failure
 signature: "has no slot"
 lanes: cells, top, analog
+audience: agent
 rule: "shapes carry `lpp`, a (layer purpose) pair — there is no `layerName`"
 rule_in: SKILL.md
 ---

@@ -2,6 +2,7 @@
 id: 006-a-cell-that-was-not-there-yet
 outcome: success
 lanes: power, top
+audience: agent, planner
 rule: "Do not guess its numbers, and do not build a placeholder"
 rule_in: SKILL.md
 ---

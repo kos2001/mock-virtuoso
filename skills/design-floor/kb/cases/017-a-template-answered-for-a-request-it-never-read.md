@@ -2,6 +2,7 @@
 id: 017-a-template-answered-for-a-request-it-never-read
 outcome: failure
 lanes: request
+audience: floor
 rule: "This planner knows INV, NAND2, NOR2, BUF and DFF"
 rule_in: code
 ---

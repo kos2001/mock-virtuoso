@@ -3,6 +3,7 @@ id: 014-no-way-to-count
 outcome: failure
 signature: "foreach needs a list"
 lanes: gates, gcd
+audience: agent
 rule: "`foreach` walks a list and cannot count"
 rule_in: SKILL.md
 ---

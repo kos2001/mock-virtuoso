@@ -2,6 +2,7 @@
 id: 007-mirrored-placement-point
 outcome: success
 lanes: top
+audience: agent, planner
 rule: "`MY` mirrors about the origin"
 rule_in: roles/top.md
 ---

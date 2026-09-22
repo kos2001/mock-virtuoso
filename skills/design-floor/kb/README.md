@@ -30,6 +30,22 @@ is worth *closing* when the lesson has been moved somewhere an agent reads
 before working — usually `../SKILL.md`, sometimes the mock itself, if the right
 answer was that the mock was wrong.
 
+## Who reads a case
+
+`audience` says who a case is written for, and it is the reason the planner can
+be given any of this at all:
+
+- `agent` — someone writing SKILL by hand on a lane
+- `planner` — the step that turns a request in words into JSON ops
+- `floor` — the screen itself
+
+Most cases are `agent`. `foreach` cannot count is a true and expensive lesson,
+and in a prompt that emits JSON ops it is noise — a block nobody finishes
+reading teaches nothing. `toolkit/precedent.py` sends only `planner` cases into
+the plan prompt, and sends a case whose `signature` matches a refusal back to
+the model with the refusal. That is why a `signature` is worth writing: it is
+the claim that this failure can be recognised again.
+
 ## A case
 
 Front matter, then prose. `signature` is a regex matched against the daemon's

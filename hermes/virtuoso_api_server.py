@@ -32,7 +32,7 @@ from toolkit.planner import (
     PlanError,
     answer_text,
     execute,
-    plan_with_hermes,
+    plan_and_validate,
     plan_with_rules,
     validate,
 )
@@ -74,21 +74,18 @@ class Handler(BaseHTTPRequestHandler):
 
         t0 = time.time()
         planner_used = "rules"
-        plan_raw = None
-        if PLANNER in ("auto", "hermes"):
-            plan_raw, note = plan_with_hermes(text)
-            if plan_raw is not None:
-                planner_used = "hermes"
-            elif PLANNER == "hermes":
-                return self._chat(f"planner failed: {note}", t0, "hermes", error=True)
-        if plan_raw is None:
-            plan_raw, planner_used = plan_with_rules(text)
-
         try:
-            plan = validate(plan_raw)
+            if PLANNER == "rules":
+                plan = validate(plan_with_rules(text)[0])
+            else:
+                # Refusals go back to the model once, carrying what the
+                # knowledge base knows about that failure. Nothing has been
+                # executed at this point, so a retry cannot half-build a cell.
+                plan, planner_used = plan_and_validate(text)
         except PlanError as exc:
             return self._chat(
                 f"Rejected the {planner_used} plan before touching the design: {exc}\n"
+                "It was sent back once with that reason and still did not validate. "
                 "Nothing was executed.", t0, planner_used, error=True)
         try:
             report = execute(CLIENT, plan)

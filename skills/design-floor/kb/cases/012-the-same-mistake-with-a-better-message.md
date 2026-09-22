@@ -3,6 +3,7 @@ id: 012-the-same-mistake-with-a-better-message
 outcome: success
 signature: "expected a point like|must be a number, got"
 lanes: gates
+audience: agent
 rule: "none"
 rule_in: none
 ---

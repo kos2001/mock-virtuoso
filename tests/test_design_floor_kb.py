@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT))
 from floor.harvest import group_failures, load_cases, match_case  # noqa: E402
 
 ALL = load_cases(CASES)
-REQUIRED = ("id", "outcome", "lanes", "rule", "rule_in")
+REQUIRED = ("id", "outcome", "lanes", "audience", "rule", "rule_in")
 
 
 def ids(case):

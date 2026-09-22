@@ -22,25 +22,11 @@ import urllib.request
 from collections import Counter
 from pathlib import Path
 
-CASES = Path(__file__).resolve().parent.parent / "skills" / "design-floor" / "kb" / "cases"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-
-def load_cases(directory: Path = CASES) -> list[dict]:
-    """Every case, with its front matter parsed. Order is the filename's."""
-    cases = []
-    for path in sorted(directory.glob("*.md")):
-        text = path.read_text(encoding="utf-8")
-        if not text.startswith("---\n"):
-            raise ValueError(f"{path.name}: no front matter")
-        front, _, body = text[4:].partition("\n---\n")
-        fields: dict = {"path": path, "body": body.strip()}
-        for line in front.splitlines():
-            if not line.strip() or line.lstrip().startswith("#"):
-                continue
-            key, _, value = line.partition(":")
-            fields[key.strip()] = value.strip().strip('"')
-        cases.append(fields)
-    return cases
+# One loader, because the planner reads these cases too now and two parsers
+# for one file format is one parser too many.
+from toolkit.precedent import CASES, load_cases  # noqa: E402,F401
 
 
 def fetch_feed(source: str) -> dict:

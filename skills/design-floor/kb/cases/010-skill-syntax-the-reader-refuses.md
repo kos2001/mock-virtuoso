@@ -3,6 +3,7 @@ id: 010-skill-syntax-the-reader-refuses
 outcome: failure
 signature: "unexpected character|unterminated argument list|must be followed by a name"
 lanes: cells, verify
+audience: agent
 rule: "none"
 rule_in: none
 ---

@@ -3,6 +3,7 @@ id: 005-naming-a-function-instead-of-calling-it
 outcome: failure
 signature: "unbound variable"
 lanes: cells
+audience: agent
 rule: "A bare name is a variable"
 rule_in: SKILL.md
 ---
