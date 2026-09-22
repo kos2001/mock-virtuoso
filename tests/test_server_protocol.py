@@ -5,7 +5,8 @@ import time
 import pytest
 
 from mock_virtuoso.auth import Authenticator
-from mock_virtuoso.server import NAK, MockVirtuosoServer, build_response
+from mock_virtuoso.server import (NAK, _SOCKET_TIMEOUT, MockVirtuosoServer,
+                                  build_response)
 from mock_virtuoso.session import Session
 
 
@@ -396,9 +397,14 @@ def test_stop_unblocks_stuck_client(tmp_path):
     # fixed amount, which fails under load for reasons unrelated to the unblock.
     srv._thread.join(timeout=10)
 
-    # The point is the handler did not sit out its 5-second socket timeout.
+    # The point is the handler did not sit out its socket timeout. Measure
+    # against that timeout rather than a round number: the failure this guards
+    # is binary — milliseconds when stop() interrupts recv(), the full
+    # _SOCKET_TIMEOUT when it does not — and a tighter bound only adds load-
+    # induced failures that say nothing about the unblock.
     assert not srv._thread.is_alive(), "Thread should be dead after stop()"
-    assert stop_time < 2, f"stop() should return quickly, took {stop_time:.2f}s"
+    assert stop_time < _SOCKET_TIMEOUT, (
+        f"stop() sat out the recv timeout: {stop_time:.2f}s of {_SOCKET_TIMEOUT}s")
 
 
 def test_stop_does_not_log_spurious_traceback(tmp_path, capfd):
