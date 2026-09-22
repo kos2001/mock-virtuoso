@@ -48,8 +48,10 @@ HTTP_PORT = 8900
 # Lane name -> the role its agent plays on this floor.
 LANES: dict[str, str] = {
     "cells": "standard-cell designer — draws leaf cells",
-    "analog": "analog designer — draws the bias/analog cell",
+    "analog": "analog designer — draws the bias cell",
+    "power": "power-grid designer — straps the row on met3",
     "top": "integrator — floorplans and places instances",
+    "verify": "verifier — reads the design back and audits it, draws nothing",
 }
 
 STX = 0x02

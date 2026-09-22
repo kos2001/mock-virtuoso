@@ -271,6 +271,17 @@ lane's port (`VB_REMOTE_HOST_<lane>=localhost`), so the CLI resolves local mode
 exactly as it would against a local Virtuoso. Nothing about the agent's tooling is
 special-cased for the mock.
 
+Five lanes ship: `cells` and `analog` draw leaf cells, `power` straps the row on
+met3, `top` floorplans and places instances, and `verify` draws nothing — it
+reads the finished design back and checks the other agents' claims against it.
+
+Each lane's brief is a file rather than a prompt. `skills/design-floor/SKILL.md`
+holds what every agent on the floor needs — how to reach the session, the
+technology, the house rules — and `roles/<lane>.md` holds that lane's job. An
+agent is dispatched by being told its lane and pointed at those two files. A
+test pairs the lanes against the briefs, so adding one without the other fails
+rather than leaving an agent with nothing to read.
+
 The observatory at `:8900` shows three things side by side: which agent is doing
 what, the full SKILL transcript with every reply, and the layout redrawn from the
 database as it grows. Recording happens **on the wire**, not inside the mock —
