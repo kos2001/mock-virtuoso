@@ -34,6 +34,20 @@ reported success. **A port being open is not evidence that your code is
 running.** The check has to be for something only the new build serves — a new
 route, a new lane, a string that did not exist before.
 
+## The wording, a fourth time
+
+Even once all three causes were gone, the idle panel still opened with
+"Listening — no agent has sent anything yet" and a CLI command. That describes
+joining a lane as an agent, which is not what the person at this screen does
+any more — the floor has a request box now. A message explaining a workflow
+you are not using reads as something having gone wrong, which is exactly how
+it was read, twice.
+
+The idle state now says "Ready. Nothing has been built yet", points at the box
+under the canvas in both languages, and folds the CLI instructions into a
+collapsed "Agents can join too". Same information, ordered by who is actually
+reading it.
+
 ## And a third cause, underneath both
 
 The floor sent no cache headers at all, so the browser kept whatever it had
