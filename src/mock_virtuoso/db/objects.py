@@ -216,4 +216,11 @@ class CellView(DbObject):
             return self.bbox
         if name == "cellView":
             return self
+        if name in ("shapes", "instances"):
+            # A traversal builds a list and hands it over. Handing out the
+            # cellview's own list made `foreach(s cv~>shapes dbDeleteObject(s))`
+            # delete every other shape, because the loop walked the list while
+            # it shrank underneath — three agents in a row hit that and each
+            # worked around it.
+            return list(super().get_prop(name))
         return super().get_prop(name)

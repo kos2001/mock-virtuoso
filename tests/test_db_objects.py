@@ -395,3 +395,35 @@ def test_a_cellview_lists_its_own_slots_too():
     cv = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
     with pytest.raises(SkillError, match="shapes"):
         cv.get_prop("noSuchSlot")
+
+
+def test_a_shape_list_is_a_snapshot_not_the_live_list():
+    """`cv~>shapes` builds a list; deleting from the cell must not edit it.
+
+    Three agents in a row wrote `foreach(s cv~>shapes dbDeleteObject(s))` and
+    found it deleted every other shape, because the traversal was handing out
+    the cellview's own list and `foreach` walked it while it shrank. In SKILL
+    the list is a value; the caller holds it, and the database changing
+    underneath does not rewrite what they hold.
+    """
+    design = Design()
+    cv = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    for i in range(3):
+        cv.shapes.append(Shape("rect", "met1", "drawing",
+                               bbox=[[float(i), 0.0], [float(i) + 1, 1.0]]))
+
+    handed_out = cv.get_prop("shapes")
+    cv.shapes.clear()
+    assert len(handed_out) == 3, "the list the caller holds must not shrink"
+    assert cv.get_prop("shapes") == [], "a fresh traversal sees the empty cell"
+
+
+def test_an_instance_list_is_a_snapshot_too():
+    design = Design()
+    cv = design.open_cellview("LIB", "TOP", "layout", "maskLayout", "w")
+    master = design.open_cellview("LIB", "M", "layout", "maskLayout", "w")
+    cv.instances.append(Instance("I0", "LIB", "M", "layout", [0.0, 0.0], "R0", master))
+
+    handed_out = cv.get_prop("instances")
+    cv.instances.clear()
+    assert len(handed_out) == 1

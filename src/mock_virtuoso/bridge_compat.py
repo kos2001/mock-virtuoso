@@ -50,9 +50,9 @@ def clear_layout(client: Any, lib: str, cell: str, view: str = "layout",
     cell -- that is how Virtuoso behaves too. A tool that means "build this
     cell from scratch" therefore has to clear it itself.
 
-    `foreach` walks the live list while `dbDeleteObject` removes from it, so a
-    single pass can step over entries. Repeat until the cellview says it holds
-    nothing rather than trusting one sweep.
+    A sweep is repeated rather than trusted once: the cell may also be open in
+    an editor, and a caller that means "empty this" should get an empty cell
+    rather than whatever one pass happened to reach.
     """
     skill = _CLEAR_SKILL.format(lib=lib, cell=cell, view=view)
     for _ in range(attempts):
