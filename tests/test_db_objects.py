@@ -252,3 +252,42 @@ def test_cellview_bbox_diamond_reuse_of_same_master_is_not_a_false_cycle():
         Instance("I1", "LIB", "DLEAF", "layout", [10.0, 10.0], "R0", leaf))
 
     assert top.bbox == [[0.0, 0.0], [11.0, 11.0]]
+
+
+def test_close_cellview_keeps_the_cell_contents():
+    """dbClose releases the cellview; it does not empty the cell.
+
+    Two agents driving the mock independently hit this: they drew a cell,
+    closed it, reopened it, and found it empty. Closing a window in Virtuoso
+    does not delete geometry from the library, and a mock that loses it that
+    silently is worse than one that refuses the call.
+    """
+    design = Design()
+    cv = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    shape = Shape("rect", "met1", "drawing", bbox=[[0.0, 0.0], [4.0, 4.0]])
+    cv.shapes.append(shape)
+    design.close_cellview(cv)
+
+    reopened = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "r")
+    assert reopened is not cv                      # a new cellview object...
+    assert [s.handle for s in reopened.shapes] == [shape.handle]   # ...same cell
+
+
+def test_closed_cellview_is_not_an_open_cellview():
+    design = Design()
+    cv = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    assert cv in design.open_cellviews
+    design.close_cellview(cv)
+    assert design.open_cellviews == []
+
+
+def test_closed_cell_is_still_findable_as_an_instance_master():
+    """A master need not be open in a window to be instantiated."""
+    design = Design()
+    cv = design.open_cellview("LIB", "MASTER", "layout", "maskLayout", "w")
+    cv.shapes.append(Shape("rect", "met1", "drawing", bbox=[[0.0, 0.0], [2.0, 2.0]]))
+    design.close_cellview(cv)
+
+    master = design.find_cellview("LIB", "MASTER", "layout")
+    assert master is not None
+    assert len(master.shapes) == 1

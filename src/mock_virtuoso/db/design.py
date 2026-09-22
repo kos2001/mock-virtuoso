@@ -10,6 +10,12 @@ from mock_virtuoso.skill.errors import SkillError
 
 class Design:
     def __init__(self) -> None:
+        # The library on disk: what each cellview contains, whether or not it
+        # is currently open. Closing a cellview releases the handle; it does
+        # not empty the cell.
+        self._stored: dict[tuple[str, str, str], CellView] = {}
+        # The cellviews open right now, which is what dbGetOpenCellViews and
+        # object deletion work against.
         self._cellviews: dict[tuple[str, str, str], CellView] = {}
         self._handles: dict[str, DbObject] = {}
         self._counter = itertools.count(0x1000)
@@ -43,7 +49,8 @@ class Design:
         return list(self._cellviews.values())
 
     def find_cellview(self, lib: str, cell: str, view: str) -> CellView | None:
-        return self._cellviews.get((lib, cell, view))
+        """The stored cellview, open or not — a master is instantiable either way."""
+        return self._stored.get((lib, cell, view))
 
     def cell_exists(self, lib: str, cell: str) -> bool:
         return (lib, cell) in self._known_cells
@@ -62,13 +69,22 @@ class Design:
             existing.view_type = view_type
             return existing
         cv = CellView(lib, cell, view, view_type, mode)
+        stored = self._stored.get(key)
+        if stored is not None:
+            # Reopening the same cell: a fresh cellview object with a fresh
+            # handle, holding the geometry that was already there. The lists
+            # are shared rather than copied, so the stored cellview and the
+            # open one remain one cell.
+            cv.adopt_contents(stored)
         self.register(cv)
         self._cellviews[key] = cv
+        self._stored[key] = cv
         return cv
 
     def close_cellview(self, cv: CellView) -> None:
         key = (cv.get_prop("libName"), cv.get_prop("cellName"),
                cv.get_prop("viewName"))
+        # Only the open set loses it; `_stored` keeps the cell's contents.
         self._cellviews.pop(key, None)
         # Unregister handle so resolving closed cellview raises error
         self.unregister(cv)

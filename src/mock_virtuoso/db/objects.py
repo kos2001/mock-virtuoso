@@ -114,6 +114,16 @@ class CellView(DbObject):
         self._slot_instances: list[Instance] = []
         self.saved = False
 
+    def adopt_contents(self, other: "CellView") -> None:
+        """Take over another cellview's geometry, by reference, not by copy.
+
+        Used when a stored cell is reopened: the new cellview object is a new
+        handle onto the same cell, so the two must not drift apart.
+        """
+        self._slot_shapes = other._slot_shapes
+        self._slot_instances = other._slot_instances
+        self.saved = other.saved
+
     @property
     def shapes(self) -> list:
         return self._slot_shapes
