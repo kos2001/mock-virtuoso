@@ -52,6 +52,24 @@ vd = techFindViaDefByName(techGetTechFile(cv) "M1_M2")
 dbCreateVia(cv vd 4:3 "R0")
 ```
 
+### Checking what you drew
+
+`mockDrcCheck(cv)` returns a list of rule violations for one cellview, empty if
+there are none. It checks minimum width, same-layer spacing, the 0.005 µm
+manufacturing grid and minimum area.
+
+```
+mockDrcCheck(dbOpenCellViewByType("STDLIB" "INV" "layout" "maskLayout" "r"))
+→ ("DRC-WIDTH-001 [error] met1: 0.05 µm wide < 0.14 µm minimum at (0 0) (0.05 2)")
+```
+
+Two things about it. It is **not Cadence SKILL** — the `mock` prefix is there
+because you may write SKILL somewhere else afterwards, and a plausible-looking
+name would be a lie that travels. And the codes are this session's own: their
+meaning lives in `DRC.md` and nowhere else, so read that rather than guessing a
+rule from its code. A clean result means these rules passed, not that the
+layout is correct.
+
 ## What this session will and will not do
 
 It covers the **layout** domain. Schematic (`sch*`) and Maestro (`mae*`)

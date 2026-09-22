@@ -511,9 +511,32 @@ def execute(client, plan: dict) -> dict:
                 by_layer[r["layer"]] = by_layer.get(r["layer"], 0) + 1
         bb = client.execute_skill(
             f'dbOpenCellViewByType("{lib}" "{cell}" "layout" "maskLayout" "r")~>bBox')
+        # Nothing used to look at whether the shapes were legal, so a 0.05 µm
+        # wire built and read back exactly like a good one.
+        dr = client.execute_skill(
+            f'mockDrcCheck(dbOpenCellViewByType("{lib}" "{cell}" '
+            '"layout" "maskLayout" "r"))')
         report["cells"][cell] = {"shapes_by_layer": by_layer, "instances": insts,
-                                 "bBox": (bb.output or "").strip()}
+                                 "bBox": (bb.output or "").strip(),
+                                 "drc": _drc_lines(dr)}
     return report
+
+
+def _drc_lines(result) -> list[str]:
+    """The violations a check returned, or [] — never a silent nothing.
+
+    A check that could not run is not a clean check. The caller is told which
+    it got, because an absent measurement must not read like a clean one.
+    """
+    if result.status is not ExecutionStatus.SUCCESS:
+        return [f"NOT CHECKED — {result.errors}"]
+    text = (result.output or "").strip()
+    if not text or text == "nil":
+        return []
+    # A SKILL list prints as ("a" "b" "c") on one line. Splitting on newlines
+    # ran three violations together into one unreadable line; the quotes are
+    # the separator, and a violation never contains one.
+    return re.findall(r'"([^"]*)"', text) or [text.strip("()")]
 
 
 def answer_text(plan: dict, report: dict, planner: str, elapsed: float) -> str:
@@ -552,4 +575,8 @@ def answer_text(plan: dict, report: dict, planner: str, elapsed: float) -> str:
                          "this cell is empty")
         for i in info["instances"]:
             lines.append(f"    inst {i['name']} ({i['cell']}) {i['orient']} bbox={i['bbox']}")
+        for line in info.get("drc", []):
+            lines.append(f"    ⚠ {line}")
+        if not info.get("drc") and info["shapes_by_layer"]:
+            lines.append("    mockTech rules: clean (width, spacing, grid, area)")
     return "\n".join(lines)
