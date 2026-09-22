@@ -61,8 +61,15 @@ canvas:active{cursor:grabbing}
 .ev .rp{margin-top:2px;font-size:11px;color:var(--ok);white-space:pre-wrap;
         word-break:break-word;max-height:4.6em;overflow:hidden}
 .ev.bad .rp{color:var(--err)}
-.empty{padding:22px 14px;color:var(--dim);font-size:11.5px;line-height:1.7}
-.empty code{color:var(--hi)}
+.empty{padding:20px 14px;color:var(--dim);font-size:11.5px;line-height:1.65}
+.empty p{margin:10px 0 12px}
+.empty .wait{display:flex;align-items:center;gap:8px;color:var(--ink);font-weight:600}
+.empty pre{margin:0;padding:9px 10px;background:#0b1017;border:1px solid var(--edge);
+           border-radius:5px;color:var(--hi);font-size:11px;line-height:1.85;
+           white-space:pre-wrap;word-break:break-all}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--hi);flex:none;
+       animation:pulse 1.8s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.25}50%{opacity:1}}
 </style>
 
 <header>
@@ -96,10 +103,11 @@ canvas:active{cursor:grabbing}
 
   <div class="col right">
     <h2>SKILL transcript</h2>
-    <div id="feed"><div class="empty">
-      No agent has connected yet.<br><br>
-      Each agent drives the shipped CLI:<br>
-      <code>virtuoso-bridge eval --env floor/lanes.env -p &lt;lane&gt; '&lt;SKILL&gt;'</code>
+    <div id="feed"><div class="empty" id="empty">
+      <div class="wait"><span class="pulse"></span>Listening — no agent has sent anything yet.</div>
+      <p>Every lane is open. An agent joins by running the shipped CLI; whatever
+         it sends appears here, verbatim, with the daemon's reply.</p>
+      <pre id="emptyCmds"></pre>
     </div></div>
   </div>
 </main>
@@ -111,6 +119,13 @@ const color = l => LANE_COLOR[l] || "#8b949e";
 const esc = s => (s||"").replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
 
 let seq = 0, current = null, cells = [], pending = false, lastEventAt = 0;
+
+function renderEmptyHint(lanes){
+  const el = $("emptyCmds");
+  if(!el) return;                       // already replaced by the first event
+  el.textContent = Object.keys(lanes).map(name =>
+    `virtuoso-bridge eval --env floor/lanes.env -p ${name} '<SKILL>'`).join("\n");
+}
 
 function renderLanes(lanes){
   const now = Date.now();
@@ -169,6 +184,7 @@ async function poll(){
     seq = f.seq;
     $("stOps").textContent = seq;
     renderLanes(f.lanes || {});
+    renderEmptyHint(f.lanes || {});
     appendEvents(fresh);
 
     const key = c => `${c.lib}/${c.cell}`;
