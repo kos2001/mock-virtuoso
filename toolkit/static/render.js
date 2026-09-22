@@ -1,4 +1,4 @@
-/* Shared layout renderer for the workbench and the agent design floor.
+/* The layout renderer for the agent design floor.
  *
  * Draws rows exactly as `layout_read_geometry` returns them through the bridge:
  * shapes by lpp, instances by their master's shapes under a Cadence orientation

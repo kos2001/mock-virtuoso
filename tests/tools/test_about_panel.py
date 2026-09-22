@@ -11,9 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.tools.test_workbench import workbench  # noqa: F401
-
-ABOUT = Path(__file__).resolve().parents[2] / "webapp" / "about.js"
+ABOUT = Path(__file__).resolve().parents[2] / "toolkit" / "static" / "about.js"
 
 
 def test_every_entry_carries_both_languages():
@@ -29,10 +27,11 @@ def test_neither_language_is_left_empty():
     assert not re.search(r"(?<![A-Za-z0-9_])(ko|en):\s*(\"\"|\[\s*\])", source)
 
 
-def test_the_two_screens_are_described_separately():
-    """Each front end explains itself, not the other one."""
+def test_the_one_screen_describes_itself():
+    """There is one front end now; the panel should not still offer two."""
     source = ABOUT.read_text(encoding="utf-8")
-    assert "workbench:" in source and "floor:" in source
+    assert "floor:" in source
+    assert "workbench:" not in source, "the workbench was retired"
     assert "recording proxy" in source, "the floor's lane is what makes it worth watching"
 
 
@@ -43,26 +42,12 @@ def test_the_language_preference_is_read_defensively():
     assert "try" in getter and "catch" in getter
 
 
-def test_the_workbench_serves_it(workbench):
-    import urllib.request
-
-    with urllib.request.urlopen(workbench + "/about.js", timeout=10) as response:
-        assert response.status == 200
-        assert "javascript" in response.headers.get("Content-Type", "")
-        assert b"function mountAbout" in response.read()
-
-
-def test_the_floor_serves_it_from_the_same_file():
-    """One copy, two hosts — the floor reads the workbench's directory."""
+def test_the_floor_serves_it():
     floor = importlib.import_module("floor.design_floor")
-    assert (floor.WEBAPP / "about.js") == ABOUT
+    assert (floor.STATIC / "about.js") == ABOUT
 
 
-@pytest.mark.parametrize("page,marker", [
-    ("webapp/index.html", 'mountAbout("workbench")'),
-    ("floor/floor.html", 'mountAbout("floor")'),
-])
-def test_both_pages_load_and_mount_it(page, marker):
-    source = (ABOUT.parents[1] / page).read_text(encoding="utf-8")
+def test_the_page_loads_and_mounts_it():
+    source = (ABOUT.parents[2] / "floor" / "floor.html").read_text(encoding="utf-8")
     assert '<script src="/about.js"></script>' in source
-    assert marker in source
+    assert 'mountAbout("floor")' in source

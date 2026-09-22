@@ -2,8 +2,8 @@
 
 Nothing here imports the bridge — everything is duck-typed on a client object
 the caller already has — so the package keeps standing on its own. It lives
-with the mock because the bundled tools (`webapp/`, `floor/`, `hermes/`,
-`demo/`) all need the same accommodation, and one copy is better than four.
+with the mock because the bundled tools (`floor/`, `hermes/`, `demo/`,
+`toolkit/`) all need the same accommodation, and one copy is better than four.
 """
 
 from __future__ import annotations

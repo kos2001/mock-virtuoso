@@ -121,34 +121,6 @@ two instances of it in a top cell, reads the result back through the bridge's ow
 `parse_layout_geometry_output`, batch-fetches attributes, writes a screenshot, and shows
 out-of-scope SKILL (`mae*`, `sch*`) failing loudly rather than silently succeeding.
 
-## Layout Workbench (web UI)
-
-`webapp/` is a small local application that drives the bridge's client API and draws
-the result — a Cadence-Virtuoso-shaped view of what the mock is doing.
-
-```bash
-uv pip install --python .venv/bin/python -e ../virtuoso-bridge-lite   # test-time only
-.venv/bin/python webapp/app.py            # opens http://127.0.0.1:8808
-```
-
-It starts its own `MockVirtuosoServer`, connects a `VirtuosoClient` to it, and serves:
-
-- a canvas with stippled layer fills, grid, pan/zoom and a live coordinate readout;
-- **hierarchy rendering** — each instance's master geometry is transformed by its
-  `xy`/`orient` and drawn in place, so a mirrored (`MY`) instance visibly flips;
-- an **LSW** listing layers with per-layer figure counts; clicking one toggles
-  visibility and sends a real `pteSetVisible` through the bridge;
-- a **CIW** that logs every bridge call made and accepts raw SKILL at its prompt;
-- a status bar fed by `client.get_current_design()` and `client.list_windows()`.
-
-Every button is a bridge call: `client.layout.edit()`, `client.open_window()`,
-`layout_select_box()`, `client.fetch()`, `client.screenshot()`. The backend is
-stdlib-only and never reaches into `mock_virtuoso` internals for design data — it
-reads geometry back through the bridge's own `parse_layout_geometry_output`.
-
-Building this UI is what surfaced four further gaps in the mock (positional `if(...)`,
-`stringp`, `ddGetObjReadPath`, and selection ignoring instances) — all fixed.
-
 ## Driving it with an agent
 
 `virtuoso-bridge-lite` ships agent skills in its `skills/` directory. Because the bridge
@@ -180,12 +152,13 @@ believing a local Virtuoso is present once you stop the sandbox.
 
 ## The introduction panel
 
-Both front ends carry an **ⓘ About / 소개** button that opens the same panel:
+The floor carries an **ⓘ About / 소개** button opening a panel that says:
 what the mock is, how a request reaches it, what this particular screen does,
 what it deliberately does not do, and why it refuses rather than returning nil.
 
-`webapp/about.js` holds one copy, served by both servers, with a paragraph and
-a flow line per front end. Korean and English sit side by side in one table
+`toolkit/static/about.js` holds it, with a paragraph and a flow line per
+screen — a table entry, so a second screen would cost an entry rather than a
+rewrite. Korean and English sit side by side in one table
 rather than in two files, so editing one language is visibly editing the other
 — and a test fails if an entry ever carries only one. The choice is remembered
 per browser and defaults to the browser's own language.
@@ -205,20 +178,28 @@ drawing something a technology could not produce.
 anything that is not one of these — naming the ones that exist, so a refusal
 tells you what would have worked.
 
-## Two front ends
+## The front end
 
-They do different jobs, and the split is the point.
+One screen: the **Agent Design Floor** at `http://127.0.0.1:8900`.
 
-| | `webapp/` — Layout Workbench (:8808) | `floor/` — Agent Design Floor (:8900) |
-|---|---|---|
-| who drives | you | agents, each on its own lane |
-| what you do | build cells, select, fetch, run SKILL | watch |
-| shows | one design, with the tool's controls | who ran what, the reply, and the layout growing |
-| mocks | one, private to the page | one, shared by every lane |
+```bash
+.venv/bin/python floor/design_floor.py
+```
 
-Both draw with `webapp/render.js` and read through `toolkit/layout_reader.py`,
-so a cellview looks the same in either — and `toolkit/` is where anything both
-tools need belongs, since `mock_virtuoso` itself never imports the bridge.
+It is where you say what you want, where agents work, and where you watch both.
+The request box takes a sentence — Korean or English — and runs it through the
+same pipeline the OpenAI server exposes: plan, validate, build, read back. A
+request builds through its own lane, so the SKILL it sends lands in the
+transcript beside the agents', and the answer comes from the database rather
+than from the plan.
+
+The canvas is `toolkit/static/render.js`, the reader `toolkit/layout_reader.py`
+and the pipeline `toolkit/planner.py` — all shared with `hermes/`, which is the
+same capability with an OpenAI API instead of a screen.
+
+An earlier build had a second front end, a hand-driven Layout Workbench. It was
+retired: two screens meant two design databases and two of every helper, and
+nothing it did could not be said in words to this one.
 
 ## Bridge token authentication
 
@@ -303,8 +284,6 @@ database as it grows. Recording happens **on the wire**, not inside the mock —
 what a real Virtuoso would have received. The observatory reads the database
 through its own direct connection, which keeps its polling out of the agents'
 transcript.
-
-The canvas is `webapp/render.js`, shared with the workbench.
 
 ## Natural-language API (`hermes/`)
 

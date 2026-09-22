@@ -11,7 +11,7 @@ import importlib
 
 import pytest
 
-api = importlib.import_module("hermes.virtuoso_api_server")
+api = importlib.import_module("toolkit.planner")
 PlanError = api.PlanError
 
 
@@ -142,7 +142,7 @@ def test_every_validated_op_has_a_builder():
 # -- execution -------------------------------------------------------------
 
 @pytest.fixture
-def api_server(tmp_path, monkeypatch):
+def api_server(tmp_path):
     """The API server's executor wired to its own mock."""
     from virtuoso_bridge import VirtuosoClient
 
@@ -154,7 +154,6 @@ def api_server(tmp_path, monkeypatch):
     client = VirtuosoClient.local(port=mock.port)
     match_client_auth(mock, client)
     mock.start()
-    monkeypatch.setattr(api, "CLIENT", client)
     try:
         yield client
     finally:
@@ -170,8 +169,8 @@ def test_running_the_same_plan_twice_rebuilds_rather_than_piles_up(api_server):
     """
     plan = api.validate({"lib": "DEMO", "cell": "INV",
                          "ops": [rect(), rect(layer="poly", x0=2, x1=3)]})
-    api.execute(plan)
-    api.execute(plan)
+    api.execute(api_server, plan)
+    api.execute(api_server, plan)
 
     from virtuoso_bridge.virtuoso.layout import (
         layout_read_geometry,

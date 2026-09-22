@@ -1,6 +1,6 @@
 ---
 name: design-floor
-description: "Design layout in a shared mock Virtuoso through virtuoso-bridge, one agent per lane. TRIGGER when working on the mock-virtuoso design floor, when given a lane name (analog, cells, gates, gcd, power, slice, top, verify), or when asked to draw/place/audit layout in library STDLIB through floor/lanes.env."
+description: "Design layout in a shared mock Virtuoso through virtuoso-bridge, one agent per lane. TRIGGER when working on the mock-virtuoso design floor, when given a lane name (analog, cells, gates, gcd, power, request, slice, top, verify), or when asked to draw/place/audit layout in library STDLIB through floor/lanes.env."
 ---
 
 # Design Floor

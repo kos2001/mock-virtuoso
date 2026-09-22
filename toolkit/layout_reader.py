@@ -1,10 +1,10 @@
 """Reading a cellview back in the shape a canvas can draw.
 
-The workbench and the design floor both render a layout the same way: rows as
-`layout_read_geometry` reports them, plus each instance master's shapes so the
-renderer can draw hierarchy. They had a copy of this each, which had already
-drifted — one returned a `masters` key on the error path and the other did
-not.
+Rows as `layout_read_geometry` reports them, plus each instance master's shapes
+so the renderer can draw hierarchy. Two front ends had a copy of this each,
+which had already drifted — one returned a `masters` key on the error path and
+the other did not. One of those front ends has since been retired; the reader
+stayed here, because the OpenAI server reads the same way.
 """
 
 from __future__ import annotations

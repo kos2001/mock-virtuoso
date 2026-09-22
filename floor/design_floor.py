@@ -34,6 +34,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from floor.lanes import read_lanes
 from toolkit.layout_reader import read_layout
+from toolkit.planner import (
+    PlanError,
+    answer_text,
+    execute,
+    plan_with_hermes,
+    plan_with_rules,
+    validate,
+)
 
 from mock_virtuoso.bridge_compat import match_client_auth
 from mock_virtuoso.server import MockVirtuosoServer
@@ -42,7 +50,7 @@ from mock_virtuoso.session import Session
 from virtuoso_bridge import VirtuosoClient
 
 HERE = Path(__file__).parent
-WEBAPP = HERE.parent / "webapp"
+STATIC = HERE.parent / "toolkit" / "static"
 ARTIFACTS = Path(tempfile.mkdtemp(prefix="virtuoso-floor-"))
 HTTP_PORT = 8900
 
@@ -197,6 +205,42 @@ def _skill_of(request: bytes) -> str:
 
 TRANSCRIPT = Transcript()
 READER: VirtuosoClient | None = None   # reads the DB for the UI, off the lanes
+REQUEST_CLIENT: VirtuosoClient | None = None   # requests build through a lane
+
+
+def build_from_request(text: str) -> dict:
+    """A request in words, through the planner, onto this floor's own database.
+
+    The same pipeline the OpenAI server runs, against the same mock the lanes
+    are working in — so what an agent builds and what a request builds land in
+    one design, visible on one canvas.
+
+    It goes through a lane rather than the reader's connection, so the SKILL it
+    sends appears in the transcript like anyone else's. A request is a
+    participant here, not a privileged side door.
+    """
+    started = time.time()
+    plan_raw, planner = plan_with_hermes(text)
+    if plan_raw is None:
+        plan_raw, planner = plan_with_rules(text)
+
+    try:
+        plan = validate(plan_raw)
+    except PlanError as exc:
+        return {"ok": False, "planner": planner, "plan": plan_raw,
+                "answer": f"Refused the {planner} plan before touching the design: {exc}\n"
+                          "Nothing was executed."}
+
+    assert REQUEST_CLIENT is not None
+    try:
+        report = execute(REQUEST_CLIENT, plan)
+    except Exception as exc:                                   # noqa: BLE001
+        return {"ok": False, "planner": planner, "plan": plan,
+                "answer": f"bridge error: {type(exc).__name__}: {exc}"}
+
+    return {"ok": True, "planner": planner, "plan": plan,
+            "cells": [{"lib": plan["lib"], "cell": c} for c in report["cells"]],
+            "answer": answer_text(plan, report, planner, time.time() - started)}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -213,13 +257,24 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_args) -> None:   # the floor's own log is the UI
         return
 
+    def do_POST(self) -> None:
+        url = urlparse(self.path)
+        if url.path != "/api/request":
+            return self._send({"error": "not found"}, 404)
+        length = int(self.headers.get("Content-Length") or 0)
+        payload = json.loads(self.rfile.read(length) or b"{}")
+        text = (payload.get("text") or "").strip()
+        if not text:
+            return self._send({"ok": False, "answer": "Say what you want built."})
+        self._send(build_from_request(text))
+
     def do_GET(self) -> None:
         url = urlparse(self.path)
         query = parse_qs(url.query)
         if url.path in ("/", "/index.html"):
             return self._raw((HERE / "floor.html").read_bytes(), "text/html; charset=utf-8")
         if url.path in ("/render.js", "/about.js"):
-            return self._raw((WEBAPP / url.path.lstrip("/")).read_bytes(),
+            return self._raw((STATIC / url.path.lstrip("/")).read_bytes(),
                              "application/javascript; charset=utf-8")
         if url.path in ("/favicon.ico", "/favicon.svg"):
             return self._raw((HERE.parent / "assets" / "icon-small.svg").read_bytes(),
@@ -253,7 +308,7 @@ def write_lane_env(lanes: dict[str, Lane], path: Path) -> None:
 
 
 def main() -> int:
-    global READER
+    global READER, REQUEST_CLIENT
     mock = MockVirtuosoServer(Session(artifact_dir=ARTIFACTS))
     READER = VirtuosoClient.local(port=mock.port)
     match_client_auth(mock, READER)
@@ -262,6 +317,10 @@ def main() -> int:
     lanes = {name: Lane(name, mock.port, TRANSCRIPT) for name in LANES}
     for lane in lanes.values():
         lane.start()
+
+    # Requests typed into the window build through their own lane, so their
+    # SKILL shows up in the transcript exactly like an agent's.
+    REQUEST_CLIENT = VirtuosoClient.local(port=lanes["request"].port)
     env_path = HERE / "lanes.env"
     write_lane_env(lanes, env_path)
 

@@ -1,7 +1,8 @@
-/* The introduction panel, shared by the workbench and the design floor.
+/* The introduction panel for the design floor.
  *
- * One copy, two hosts: each page calls mountAbout() with its own id and gets
- * the shared explanation plus the paragraph about itself. Korean and English
+ * mountAbout() takes the host's name and renders the shared explanation plus
+ * the paragraph about that screen; it kept the shape when a second front end
+ * was retired, since the next one costs a table entry rather than a rewrite. Korean and English
  * live side by side in one table rather than in two files, so a change to one
  * language is visibly a change to the other — translations drift when they
  * are kept apart.
@@ -61,29 +62,25 @@ const ABOUT_TEXT = {
 };
 
 const ABOUT_SCREEN = {
-  workbench: {
-    ko: "레이아웃 워크벤치입니다. 여기서는 사람이 직접 운전합니다 — 셀을 만들고, 인스턴스를 배치하고, " +
-        "영역을 선택하고, SKILL을 직접 보냅니다. 버튼 하나하나가 브리지 호출로 나가고, " +
-        "캔버스는 디자인 DB를 다시 읽어 그립니다.",
-    en: "The layout workbench. You drive it — build cells, place instances, select an area, send " +
-        "SKILL by hand. Every button goes out as a bridge call, and the canvas is drawn from a " +
-        "read-back of the design database.",
-  },
   floor: {
-    ko: "에이전트 설계 현장입니다. 사람이 아니라 에이전트들이 운전하고, 이 화면은 그 과정을 " +
-        "지켜봅니다. 각 에이전트는 자기 레인 — 데몬 포트 앞에 선 기록용 프록시 — 을 통해 붙습니다. " +
-        "기록은 mock 안이 아니라 전선 위에서 이뤄지므로, 여기 보이는 모든 줄은 진짜 Virtuoso가 " +
-        "받았을 바로 그 SKILL입니다.",
-    en: "The agent design floor. Agents drive, not you, and this screen watches them. Each agent " +
-        "connects through its own lane — a recording proxy standing where the daemon's port would " +
-        "be. Recording happens on the wire rather than inside the mock, so every line here is " +
-        "exactly the SKILL a real Virtuoso would have received.",
+    ko: "에이전트 설계 현장이자, 이 프로젝트의 유일한 화면입니다. 아래 입력란에 원하는 것을 " +
+        "말로 적으면 계획으로 바뀌고, 검증을 통과한 것만 실제로 그려집니다. 에이전트들도 같은 " +
+        "디자인 DB에서 일하며, 각자 자기 레인 — 데몬 포트 앞에 선 기록용 프록시 — 을 통해 " +
+        "붙습니다. 기록은 mock 안이 아니라 전선 위에서 이뤄지므로, 여기 보이는 모든 줄은 진짜 " +
+        "Virtuoso가 받았을 바로 그 SKILL입니다. 사람이 적은 요청도 예외가 아니라 자기 레인으로 " +
+        "남습니다.",
+    en: "The agent design floor, and this project's only screen. Say what you want in the box " +
+        "below and it becomes a plan; only what passes validation is ever drawn. Agents work in " +
+        "the same design database, each through its own lane — a recording proxy standing where " +
+        "the daemon's port would be. Recording happens on the wire rather than inside the mock, " +
+        "so every line here is exactly the SKILL a real Virtuoso would have received, a typed " +
+        "request included.",
   },
 };
 
 const ABOUT_FLOW = {
-  workbench: "you  →  virtuoso-bridge  →  TCP  →  mock-virtuoso  →  design database",
-  floor:     "agent  →  virtuoso-bridge  →  lane (recording proxy)  →  mock-virtuoso  →  design database",
+  floor: "agent, or your request  →  plan  →  validate  →  virtuoso-bridge\n" +
+         "  →  lane (recording proxy)  →  mock-virtuoso  →  design database  →  read back",
 };
 
 const ABOUT_CSS = `
