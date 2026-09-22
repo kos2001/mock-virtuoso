@@ -37,6 +37,18 @@ find, so a missing pin name shows up.
 **The reports were true.** Where a colleague's quoted shape count or bounding
 box disagrees with what you read, say both numbers and which cell.
 
+**The shapes are legal.** `mockDrcCheck(cv)` returns this session's rule
+violations for one cellview — minimum width, same-layer spacing, the 0.005 µm
+grid, minimum area. Run it on every cell that holds shapes and report what
+comes back, with the code. `DRC.md` is the only place these codes are defined;
+do not read a rule out of its name. A clean result means these rules passed,
+not that the layout is correct, and it says nothing about a cell you did not
+check.
+
+```
+mockDrcCheck(dbOpenCellViewByType("STDLIB" "INV" "layout" "maskLayout" "r"))
+```
+
 ## What you could not check
 
 A check you could not run is not a check that passed, and it is not a failure

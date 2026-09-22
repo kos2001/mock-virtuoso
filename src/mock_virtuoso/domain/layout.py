@@ -9,6 +9,7 @@ from mock_virtuoso.db.geometry import (
     transform_point,
 )
 from mock_virtuoso.db.objects import CellView, Instance, Shape, TechFile, ViaDef
+from mock_virtuoso.domain import drc
 from mock_virtuoso.skill.errors import SkillError
 from mock_virtuoso.skill.values import NIL, TRUE, skill_repr
 
@@ -328,6 +329,19 @@ def install(session) -> None:
     def tech_get_tech_file(it, args, kwargs):
         return tech_file
 
+    def mock_drc_check(it, args, kwargs):
+        """This session's own rule check. Not Cadence SKILL, and named so.
+
+        Called `mockDrcCheck` rather than anything Assura- or PVS-shaped
+        because an agent that learns it here will write it somewhere else,
+        and a plausible-looking name would be a lie that travels.
+        """
+        cv = _as_cellview(args[0] if args else NIL)
+        found = drc.check(cv)
+        if not found:
+            return []
+        return [str(v) for v in found]
+
     def tech_find_via_def_by_name(it, args, kwargs):
         target = args[0] if args else NIL
         if not isinstance(target, TechFile):
@@ -359,6 +373,7 @@ def install(session) -> None:
         ("ddGetObj", dd_get_obj),
         ("ddGetObjReadPath", dd_get_obj_read_path),
         ("ddDeleteObj", dd_delete_obj),
+        ("mockDrcCheck", mock_drc_check),
         ("techGetTechFile", tech_get_tech_file),
         ("techFindViaDefByName", tech_find_via_def_by_name),
     ):
