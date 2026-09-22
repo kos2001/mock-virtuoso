@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.10", "3.13"]
+        python: ["3.10", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -29,6 +29,53 @@ jobs:
             echo "::error::src/ imports the bridge; only tests/contract/ may"
             exit 1
           fi
+
+  package:
+    name: package (the wheel stands alone)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.13" }
+      - run: pip install build
+      - run: python -m build --wheel --outdir dist
+      # The bundled tools drive the mock through virtuoso-bridge; the package
+      # itself must not depend on it, and must not ship them either.
+      - name: the wheel ships the package and nothing else
+        run: |
+          python - <<'EOF'
+          import pathlib, zipfile
+          wheel = next(pathlib.Path("dist").glob("*.whl"))
+          tops = {n.split("/")[0] for n in zipfile.ZipFile(wheel).namelist()}
+          extra = tops - {"mock_virtuoso", "mock_virtuoso-0.1.0.dist-info"}
+          if extra:
+              raise SystemExit(f"::error::wheel also ships {sorted(extra)}")
+          print("wheel top level:", sorted(tops))
+          EOF
+      # Installed from the wheel, outside the checkout, with no bridge and no
+      # dev extras: importing and serving must still work.
+      - name: the installed wheel serves on its own
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/*.whl
+          cd /tmp
+          /tmp/clean/bin/python - <<'EOF'
+          import json, socket
+          from mock_virtuoso.auth import Authenticator
+          from mock_virtuoso.server import MockVirtuosoServer
+          from mock_virtuoso.session import Session
+
+          server = MockVirtuosoServer(Session(), authenticator=Authenticator(None))
+          server.start()
+          with socket.create_connection(("127.0.0.1", server.port)) as s:
+              s.sendall(json.dumps({"skill": "1+2", "timeout": 30}).encode())
+              s.shutdown(socket.SHUT_WR)
+              reply = s.recv(100)
+          server.stop()
+          assert reply == b"\x023", reply
+          print("wheel-installed daemon answered", reply)
+          EOF
+          /tmp/clean/bin/mock-virtuoso --help > /dev/null
 
   contract:
     name: contract (against virtuoso-bridge-lite)
