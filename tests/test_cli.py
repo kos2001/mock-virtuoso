@@ -15,6 +15,18 @@ from mock_virtuoso.auth import (
 from mock_virtuoso.cli import main
 
 
+# How long a banner may take to arrive. The behaviour under test is binary:
+# a flushed line arrives as soon as the interpreter is up, an unflushed one
+# never arrives until the process exits. Any bound proves it, so the bound is
+# generous — a 1.0s bound failed once during a full-suite run on a machine
+# that was also running two servers, which says nothing about flushing.
+BANNER_TIMEOUT = 10.0
+
+# The same reasoning for shutdown: the daemon either handles the signal or
+# sits in accept() until killed.
+SHUTDOWN_TIMEOUT = 10.0
+
+
 def _read_line_bounded(proc: subprocess.Popen, timeout: float) -> Optional[str]:
     """Read one line from process stdout with timeout.
 
@@ -75,12 +87,11 @@ def test_serve_banner_flushed_when_redirected(tmp_path):
     # Read the banner with bounded timeout (fails fast if flush is missing)
     start = time.time()
     try:
-        line1 = _read_line_bounded(proc, timeout=1.0)
-        assert line1 is not None, "readline() returned None (unexpected EOF)"
+        line1 = _read_line_bounded(proc, timeout=BANNER_TIMEOUT)
         elapsed = time.time() - start
-
-        # Should get the first line quickly (not waiting for EOF)
-        assert elapsed < 1.0, f"Banner took {elapsed}s to appear (not flushed)"
+        assert line1 is not None, (
+            f"no banner within {BANNER_TIMEOUT}s: stdout is buffered until "
+            "exit, which is what the flush is for")
         assert "mock-virtuoso listening on" in line1
 
         # Extract the port from the banner
@@ -90,7 +101,7 @@ def test_serve_banner_flushed_when_redirected(tmp_path):
         assert port > 0, "Port should be positive"
 
         # Read second line with bounded timeout
-        line2 = _read_line_bounded(proc, timeout=1.0)
+        line2 = _read_line_bounded(proc, timeout=BANNER_TIMEOUT)
         assert line2 is not None, "readline() returned None on second line"
         assert "VirtuosoClient.local" in line2
         assert str(port) in line2, f"Port {port} not in second line: {line2}"
@@ -140,20 +151,22 @@ def test_serve_responds_to_sigint(tmp_path):
 
     try:
         # Wait for banner to ensure server is up (with bounded timeout)
-        line1 = _read_line_bounded(proc, timeout=1.0)
+        line1 = _read_line_bounded(proc, timeout=BANNER_TIMEOUT)
         assert line1 is not None, "readline() returned None (unexpected EOF)"
         assert "mock-virtuoso listening on" in line1
 
         # Send SIGINT
         start = time.time()
         proc.send_signal(2)  # SIGINT
-        returncode = proc.wait(timeout=2)  # Should exit in < 2 seconds
+        # wait() raising TimeoutExpired is the failure: the daemon ignored the
+        # signal and is sitting in accept(). How long a machine under load
+        # takes to get there is not the behaviour under test.
+        returncode = proc.wait(timeout=SHUTDOWN_TIMEOUT)
         elapsed = time.time() - start
 
         # Should exit cleanly with code 0 or -2 (SIGINT)
         assert returncode == 0 or returncode == -2, \
             f"Exit code {returncode} (elapsed {elapsed:.1f}s)"
-        assert elapsed < 2.0, f"Did not respond to SIGINT within 2s (took {elapsed:.1f}s)"
     finally:
         # Ensure process is cleaned up
         try:
