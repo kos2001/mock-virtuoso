@@ -26,6 +26,15 @@ from dataclasses import dataclass
 # The manufacturing grid, in microns. Every coordinate must land on it.
 GRID = 0.005
 
+# Slack on every minimum, in microns. A shape drawn at exactly the minimum is
+# legal, and `x1 - x0` for such a shape is only as exact as binary floating
+# point allows: of the 2001 grid positions a 0.14 µm met1 wire can start at,
+# 919 subtract to 0.13999999999999999. Without this the checker calls half of
+# all minimum-width geometry a violation, which is the fastest way to get a
+# checker switched off. Representation error here is ~1e-16 µm and the grid is
+# 5e-3 µm, so this sits far above the noise and far below any real violation.
+EPS = 1e-9
+
 # Per-layer minimums in microns: width, spacing to another shape on the same
 # layer, and area. `text` is annotation and has no physical extent, so it is
 # absent here rather than given a zero that would read as a checked pass.
@@ -140,11 +149,11 @@ def check(cellview) -> list[Violation]:
                 break
 
         narrow = min(x1 - x0, y1 - y0)
-        if narrow < limits["width"]:
+        if narrow < limits["width"] - EPS:
             found.append(Violation("DRC-WIDTH-001", SEVERITY["DRC-WIDTH-001"],
                                    layer, narrow, limits["width"], where))
         area = (x1 - x0) * (y1 - y0)
-        if area < limits["area"]:
+        if area < limits["area"] - EPS:
             found.append(Violation("DRC-AREA-001", SEVERITY["DRC-AREA-001"],
                                    layer, area, limits["area"], where))
 
@@ -156,7 +165,7 @@ def check(cellview) -> list[Violation]:
                 # Touching or overlapping shapes are one piece of metal, not a
                 # spacing error. Calling an abutted row a violation is how a
                 # checker gets switched off.
-                if 0.0 < gap < limit:
+                if EPS < gap < limit - EPS:
                     found.append(Violation(
                         "DRC-SPACE-001", SEVERITY["DRC-SPACE-001"], layer,
                         gap, limit, f"{where_a} to {where_b}"))

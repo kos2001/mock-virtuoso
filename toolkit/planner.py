@@ -575,8 +575,29 @@ def answer_text(plan: dict, report: dict, planner: str, elapsed: float) -> str:
                          "this cell is empty")
         for i in info["instances"]:
             lines.append(f"    inst {i['name']} ({i['cell']}) {i['orient']} bbox={i['bbox']}")
-        for line in info.get("drc", []):
-            lines.append(f"    ⚠ {line}")
-        if not info.get("drc") and info["shapes_by_layer"]:
-            lines.append("    mockTech rules: clean (width, spacing, grid, area)")
+        lines += _drc_report(info)
     return "\n".join(lines)
+
+
+# What a clean result is clean against. Printed either way: a reader who sees
+# only violations does not learn what else was looked at, and a check whose
+# scope is unstated cannot be relied on for anything it did not cover.
+DRC_SCOPE = "mockTech rules: width, spacing, grid, area"
+DRC_QUOTED = 8
+
+
+def _drc_report(info: dict) -> list[str]:
+    """The rule result for one cell: count everything, quote a bounded few.
+
+    A cell with two hundred violations is one fact — the layout is wrong —
+    and two hundred lines of it buries every other line of the answer.
+    """
+    found = info.get("drc", [])
+    if not found:
+        return [f"    {DRC_SCOPE} — clean"] if info["shapes_by_layer"] else []
+    out = [f"    ⚠ {line}" for line in found[:DRC_QUOTED]]
+    if len(found) > DRC_QUOTED:
+        out.append(f"    ⚠ … and {len(found) - DRC_QUOTED} more "
+                   f"({len(found)} violations in total)")
+    out.append(f"    checked: {DRC_SCOPE}")
+    return out

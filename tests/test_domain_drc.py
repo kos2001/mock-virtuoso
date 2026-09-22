@@ -139,3 +139,27 @@ def test_the_summary_counts_before_it_quotes():
              drc.Violation("DRC-WIDTH-001", "error", "met1", 1, 2, "b"),
              drc.Violation("DRC-AREA-001", "warn", "poly", 1, 2, "c")]
     assert drc.summary(found) == {"DRC-WIDTH-001": 2, "DRC-AREA-001": 1}
+
+
+# -- a shape drawn exactly to the minimum is legal ------------------------
+
+@pytest.mark.parametrize("start", [0.0, 0.21, 0.215, 0.5, 1.125])
+def test_a_wire_drawn_exactly_at_the_minimum_is_not_a_violation(run, start):
+    """919 of 2001 grid starts subtract to 0.13999999999999999.
+
+    Without slack the checker calls half of all minimum-width geometry a
+    violation, which is the fastest way to get a checker switched off.
+    """
+    found = draw(run, [("met1", start, 0, start + 0.14, 2.0)])
+    assert [f for f in found if "WIDTH" in f] == []
+
+
+def test_two_shapes_exactly_at_the_minimum_spacing_are_legal(run):
+    found = draw(run, [("met1", 0.21, 0, 0.71, 2.0), ("met1", 0.85, 0, 1.35, 2.0)])
+    assert [f for f in found if "SPACE" in f] == []
+
+
+def test_the_slack_is_far_below_the_grid_and_far_above_the_noise():
+    """It has to swallow representation error without hiding a real defect."""
+    assert drc.EPS < drc.GRID / 1000
+    assert drc.EPS > 1e-15
