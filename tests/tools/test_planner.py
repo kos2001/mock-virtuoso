@@ -260,3 +260,31 @@ def test_a_then_block_that_draws_as_well_as_places_builds(api_server):
     assert sum(1 for r in rows if r.get("kind") == "instance") == 2
     assert [r["layer"] for r in rows if r.get("kind") == "shape"] == ["met3"], (
         "the strap the plan asked for should be in the array cell")
+
+
+# -- the fallback must not answer for a request it did not read ------------
+
+def test_the_rules_planner_says_when_it_recognised_nothing():
+    """Two unrelated requests used to produce one template and a confident yes.
+
+    'strong arm comparator' and 'bandgap reference' both came back as
+    DEMO/CELL with ten shapes and no hint that neither had been understood.
+    A success that does not correspond to the request is the failure this
+    project exists to eliminate, and it was in the planner.
+    """
+    for text in ("strong arm 로 comparator를 설계해 줘", "make me a bandgap reference"):
+        _, planner = api.plan_with_rules(text)
+        assert "not recognised" in planner, f"{text!r} should be flagged, got {planner!r}"
+
+
+def test_the_rules_planner_stays_quiet_when_it_did_recognise_the_cell():
+    _, planner = api.plan_with_rules("STDLIB에 NAND2 셀 만들고 ROW에 4개 배치해줘")
+    assert planner == "rules"
+
+
+def test_an_unrecognised_request_is_named_in_the_answer():
+    plan, planner = api.plan_with_rules("strong arm 로 comparator를 설계해 줘")
+    text = api.answer_text(api.validate(plan),
+                           {"built": ["DEMO/CELL: 10 shapes"], "warnings": [], "cells": {}},
+                           planner, 0.0)
+    assert "not recognised" in text

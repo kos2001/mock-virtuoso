@@ -117,13 +117,22 @@ def _library_in(text: str) -> str:
 
 
 def plan_with_rules(text: str) -> tuple[dict, str]:
-    """Deterministic fallback so the server works with no LLM at all."""
+    """Deterministic fallback so the server works with no LLM at all.
+
+    Its vocabulary is small and it says so. Asked for a strong-arm comparator
+    or a bandgap reference it used to return the same template cell under the
+    same generic name, reported as a success — two unrelated requests, one
+    answer, and nothing to tell you it had read neither. It now names itself
+    "rules (request not recognised)" whenever it did not find a cell it knows,
+    and that reaches the answer.
+    """
     t = text.lower()
     lib = _library_in(text)
     # (?![A-Z0-9_]) rather than \b, for the same reason as above -- and unlike
     # \b it still refuses to read INVERTER as INV.
-    cell = (re.search(r"\b(INV|NAND2|NOR2|BUF|DFF)(?![A-Z0-9_])", text.upper())
-            or [None, "CELL"])[1]
+    match = re.search(r"\b(INV|NAND2|NOR2|BUF|DFF)(?![A-Z0-9_])", text.upper())
+    cell = match.group(1) if match else "CELL"
+    planner = "rules" if match else "rules (request not recognised)"
     ops: list[dict] = [
         {"op": "rect", "layer": "nwell", "x0": -0.2, "y0": 2.0, "x1": 4.2, "y1": 4.2},
         {"op": "rect", "layer": "diff", "x0": 0.5, "y0": 2.5, "x1": 3.5, "y1": 3.7},
@@ -143,8 +152,8 @@ def plan_with_rules(text: str) -> tuple[dict, str]:
         return {"lib": lib, "cell": cell, "ops": ops,
                 "then": {"cell": top, "ops": [
                     {"op": "place", "child": cell, "name": f"I{i}", "x": i * 4.4, "y": 0.0,
-                     "orient": "MY" if i % 2 else "R0"} for i in range(min(n, 16))]}}, "rules"
-    return {"lib": lib, "cell": cell, "ops": ops}, "rules"
+                     "orient": "MY" if i % 2 else "R0"} for i in range(min(n, 16))]}}, planner
+    return {"lib": lib, "cell": cell, "ops": ops}, planner
 
 
 # ---------------------------------------------------------------- validation
@@ -316,6 +325,15 @@ def execute(client, plan: dict) -> dict:
 
 def answer_text(plan: dict, report: dict, planner: str, elapsed: float) -> str:
     lines = [f"Built via virtuoso-bridge ({planner} planner, {elapsed:.1f}s):", ""]
+    if "not recognised" in planner:
+        lines += [
+            "  ! This planner knows INV, NAND2, NOR2, BUF and DFF, and read none",
+            "    of them in your request. What it built is its generic template",
+            f"    cell, named {plan['lib']}/{plan['cell']} — it is not what you asked",
+            "    for. The language-model planner handles the rest; this one runs",
+            "    when that is unreachable.",
+            "",
+        ]
     for b in report["built"]:
         lines.append(f"  • {b}")
     for w in report.get("warnings", []):
