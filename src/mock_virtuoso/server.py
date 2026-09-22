@@ -7,12 +7,14 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 import sys
 import threading
 import time
 import traceback
 
+from mock_virtuoso.auth import Authenticator, load_or_create_token
 from mock_virtuoso.session import Session
 from mock_virtuoso.skill.errors import SkillError
 from mock_virtuoso.skill.values import skill_repr
@@ -46,8 +48,13 @@ def build_response(session: Session, skill_code: str, timeout: float) -> bytes:
 
 class MockVirtuosoServer:
     def __init__(self, session: Session, host: str = "127.0.0.1",
-                 port: int = 0) -> None:
+                 port: int = 0, authenticator: Authenticator | None = None) -> None:
         self.session = session
+        # Token auth is on by default, as it is on the real daemon. Pass an
+        # explicitly disabled Authenticator to get the legacy unauthenticated
+        # wire, which is what the daemon's RB_ALLOW_UNAUTHENTICATED buys.
+        self.auth = (authenticator if authenticator is not None
+                     else Authenticator(load_or_create_token()))
         self._host = host
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -186,6 +193,27 @@ class MockVirtuosoServer:
             conn.sendall(NAK + b"Invalid request: expected a JSON object")
             return
 
+        nonce = request.get("nonce")
+
+        # Capability handshake. It carries no 'skill', so nothing can execute
+        # before authentication is settled -- which is the point of it: the
+        # client learns about a token or protocol mismatch before its first
+        # real command, and a daemon that predates the handshake simply NAKs.
+        if request.get("op") == "hello":
+            auth_error = self.auth.error_for(request, "hello")
+            if auth_error:
+                conn.sendall(NAK + auth_error.encode("utf-8"))
+                return
+            body = self.auth.capabilities_body(os.getpid())
+            conn.sendall(self.auth.sign_reply(nonce, STX + body))
+            return
+
+        auth_error = self.auth.error_for(request, "req")
+        if auth_error:
+            # Unauthenticated or foreign client: refuse without executing.
+            conn.sendall(NAK + auth_error.encode("utf-8"))
+            return
+
         # Extract and validate 'skill' field
         skill = request.get("skill")
         if not isinstance(skill, str):
@@ -202,7 +230,7 @@ class MockVirtuosoServer:
 
         response = build_response(self.session, skill, timeout)
         try:
-            conn.sendall(response)
+            conn.sendall(self.auth.sign_reply(nonce, response))
         except OSError:
             # The client disconnected between request and response. This
             # is a benign, unremarkable event -- not the "genuine

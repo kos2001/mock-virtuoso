@@ -8,8 +8,22 @@ from __future__ import annotations
 
 import pytest
 
+from mock_virtuoso.auth import Authenticator
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
+
+
+def _match_client_auth(mock, client) -> None:
+    """Give the mock whatever bridge token this client holds.
+
+    Token auth arrived in the bridge partway through this project's life. Rather
+    than sniff versions, the daemon adopts the client's secret: a client new
+    enough to carry one gets an authenticated daemon sharing it, and an older
+    tokenless client gets the legacy wire it expects. Both ends agree by
+    construction, which is not something a version check can promise -- and
+    whichever wire is installed is the one these tests exercise for real.
+    """
+    mock.auth = Authenticator(getattr(client, "daemon_token", None))
 
 
 @pytest.fixture
@@ -21,6 +35,13 @@ def bridge_client(tmp_path):
     from virtuoso_bridge import VirtuosoClient
 
     session = Session(artifact_dir=tmp_path)
-    with MockVirtuosoServer(session) as server:
-        client = VirtuosoClient.local(port=server.port)
+    # The port is bound by the constructor but nothing is served until start(),
+    # so the client can be built -- and its token adopted -- in between.
+    server = MockVirtuosoServer(session)
+    client = VirtuosoClient.local(port=server.port)
+    _match_client_auth(server, client)
+    server.start()
+    try:
         yield client, session
+    finally:
+        server.stop()

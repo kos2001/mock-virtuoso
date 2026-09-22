@@ -25,6 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from mock_virtuoso.auth import Authenticator
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
 
@@ -284,8 +285,14 @@ def write_lane_env(lanes: dict[str, Lane], path: Path) -> None:
 def main() -> int:
     global READER
     mock = MockVirtuosoServer(Session(artifact_dir=ARTIFACTS))
-    mock.start()
     READER = VirtuosoClient.local(port=mock.port)
+    # The bridge gained token auth partway through this project's life. Rather
+    # than sniff versions, the daemon adopts whatever secret this client holds:
+    # a client new enough to carry one gets an authenticated daemon sharing it,
+    # an older tokenless client gets the legacy wire. The port is bound by the
+    # constructor and nothing is served until start(), so this fits in between.
+    mock.auth = Authenticator(getattr(READER, "daemon_token", None))
+    mock.start()
 
     lanes = {name: Lane(name, mock.port, TRANSCRIPT) for name in LANES}
     for lane in lanes.values():

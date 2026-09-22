@@ -178,6 +178,35 @@ ROW        : I0 NAND2 R0 ((-0.2 0.0) (4.2 4.2))
 `demo/agent_sandbox.py` removes the tunnel-state file on exit, so the bridge stops
 believing a local Virtuoso is present once you stop the sandbox.
 
+## Bridge token authentication
+
+The daemon the bridge ships authenticates every request, and so does this mock.
+`src/mock_virtuoso/auth.py` implements wire protocol v1 as
+`ramic_bridge_daemon_3.py` defines it: a shared 0600 token file that never
+crosses the wire, an HMAC over the *complete* request (so no field can be
+swapped in flight), separate MAC domains for the capability handshake and for
+execution, signed replies — error replies included, so a squatter on the port
+cannot hide behind one — and server-side nonce replay rejection that fails
+closed at capacity.
+
+Both ends read the same file, `~/.virtuoso-bridge/bridge_token` by default
+(`RB_TOKEN_PATH` for the daemon, `VB_BRIDGE_TOKEN` for the client), creating it
+if absent. `MockVirtuosoServer` therefore authenticates by default, as the real
+daemon does. The bundled entry points take a different route to the same place:
+they hand the mock whatever token their client holds, so a bridge old enough to
+predate token auth still gets the wire it expects without any version sniffing.
+
+```python
+server = MockVirtuosoServer(session)              # port bound, not yet serving
+client = VirtuosoClient.local(port=server.port)
+server.auth = Authenticator(getattr(client, "daemon_token", None))
+server.start()
+```
+
+The contract suite runs whichever wire the installed bridge speaks, and one of
+its tests asserts the two agree — a bridge with token auth must be exercising
+the authenticated path, not quietly falling back to the legacy one.
+
 ## Agent design floor (`floor/`)
 
 `floor/design_floor.py` puts several agents to work in **one** design database and

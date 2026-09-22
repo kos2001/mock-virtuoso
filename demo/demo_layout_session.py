@@ -11,6 +11,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+from mock_virtuoso.auth import Authenticator
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
 
@@ -49,8 +50,16 @@ def show(label: str, result) -> None:
 
 def main() -> int:
     artifacts = Path(tempfile.mkdtemp(prefix="virtuoso-demo-"))
-    with MockVirtuosoServer(Session(artifact_dir=artifacts)) as server:
-        client = VirtuosoClient.local(port=server.port)
+    server = MockVirtuosoServer(Session(artifact_dir=artifacts))
+    client = VirtuosoClient.local(port=server.port)
+    # The bridge gained token auth partway through this project's life. Rather
+    # than sniff versions, the daemon adopts whatever secret this client holds:
+    # a client new enough to carry one gets an authenticated daemon sharing it,
+    # an older tokenless client gets the legacy wire. The port is bound by the
+    # constructor and nothing is served until start(), so this fits in between.
+    server.auth = Authenticator(getattr(client, "daemon_token", None))
+    server.start()
+    try:
 
         head("Connect — exactly as against a real Virtuoso daemon")
         print(f"   VirtuosoClient.local(port={server.port})")
@@ -129,6 +138,8 @@ def main() -> int:
         print("Every call above is the real virtuoso-bridge-lite API.")
         print("No Cadence licence, no EDA server, no Virtuoso process.")
         print(f"Artifacts: {artifacts}")
+    finally:
+        server.stop()
     return 0
 
 

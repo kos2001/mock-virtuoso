@@ -537,3 +537,30 @@ def test_client_fetch_on_selection(bridge_client):
     assert len(rows) == 1
     assert rows[0]["objType"] == "rect"
     assert rows[0]["lpp"] == ["met1", "drawing"]
+
+
+def test_the_authenticated_wire_is_the_one_under_test(bridge_client):
+    """If the installed bridge has token auth, these tests must be using it.
+
+    The fixture adopts whatever secret the client holds, which is what lets one
+    suite cover both wires — and is also exactly how this could rot into always
+    testing the unauthenticated path without anyone noticing. So assert the
+    pairing directly: bridge has token auth <=> daemon is authenticating.
+    """
+    client, session = bridge_client
+    try:
+        import virtuoso_bridge.daemon_auth  # noqa: F401
+        bridge_has_token_auth = True
+    except ImportError:
+        bridge_has_token_auth = False
+
+    assert bool(getattr(client, "daemon_token", None)) == bridge_has_token_auth, (
+        "a bridge with token auth must hand its client a token")
+
+    # Prove it end to end rather than trusting the flag: a signed round trip.
+    result = client.execute_skill("1+2")
+    assert result.status == ExecutionStatus.SUCCESS, result.errors
+    assert result.output.strip() == "3"
+    if bridge_has_token_auth:
+        assert client._daemon_caps is not None, "the handshake never happened"
+        assert client._daemon_caps["auth"] == "on", client._daemon_caps

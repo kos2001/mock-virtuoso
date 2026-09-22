@@ -18,6 +18,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from mock_virtuoso.auth import Authenticator
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
 
@@ -32,6 +33,16 @@ def main() -> int:
         tempfile.mkdtemp(prefix="virtuoso-agent-"))
 
     server = MockVirtuosoServer(Session(artifact_dir=artifacts), port=args.port)
+    # Agents here reach the daemon as separate processes through the bridge CLI,
+    # so there is no client object to take a token from. Read the same file the
+    # bridge's clients read: a bridge new enough to have token auth gives an
+    # authenticated daemon sharing their secret, an older one gives the legacy
+    # wire its clients expect.
+    try:
+        from virtuoso_bridge import daemon_auth
+        server.auth = Authenticator(daemon_auth.read_or_create_local_token())
+    except ImportError:
+        server.auth = Authenticator(None)
     server.start()
 
     # Write the bridge's own local-mode state, using the bridge's own path helper

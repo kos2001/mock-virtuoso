@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from mock_virtuoso.auth import Authenticator
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
 
@@ -255,8 +256,14 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> int:
     global CLIENT
     mock = MockVirtuosoServer(Session(artifact_dir=ARTIFACTS))
-    mock.start()
     CLIENT = VirtuosoClient.local(port=mock.port)
+    # The bridge gained token auth partway through this project's life. Rather
+    # than sniff versions, the daemon adopts whatever secret this client holds:
+    # a client new enough to carry one gets an authenticated daemon sharing it,
+    # an older tokenless client gets the legacy wire. The port is bound by the
+    # constructor and nothing is served until start(), so this fits in between.
+    mock.auth = Authenticator(getattr(CLIENT, "daemon_token", None))
+    mock.start()
     log("sys", f"mock-virtuoso listening on 127.0.0.1:{mock.port}")
     log("sys", "VirtuosoClient connected — no Cadence licence, no EDA server")
 

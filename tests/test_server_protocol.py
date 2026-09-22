@@ -4,13 +4,22 @@ import time
 
 import pytest
 
+from mock_virtuoso.auth import Authenticator
 from mock_virtuoso.server import NAK, MockVirtuosoServer, build_response
 from mock_virtuoso.session import Session
 
 
 @pytest.fixture
 def server(tmp_path):
-    with MockVirtuosoServer(Session(artifact_dir=tmp_path)) as srv:
+    """A daemon on the legacy unauthenticated wire.
+
+    These tests are about the SKILL/response contract, so they assert raw
+    response bytes. Token auth inserts a MAC between the marker and the body,
+    which would bury what each of them is actually checking; it gets its own
+    module, tests/test_auth.py.
+    """
+    with MockVirtuosoServer(Session(artifact_dir=tmp_path),
+                            authenticator=Authenticator(None)) as srv:
         yield srv
 
 
@@ -326,7 +335,8 @@ def test_unicode_decode_error_labeled_correctly(server):
 def test_stop_terminates_thread_and_is_idempotent(tmp_path):
     """stop() should terminate the thread and be safe to call multiple times."""
     import time
-    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path))
+    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path),
+                             authenticator=Authenticator(None))
     srv.start()
     assert srv._thread is not None
     assert srv._thread.is_alive()
@@ -346,7 +356,8 @@ def test_stop_unblocks_stuck_client(tmp_path):
     import time
     import threading
 
-    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path))
+    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path),
+                             authenticator=Authenticator(None))
     srv.start()
 
     # Open a client connection but don't send EOF or data
@@ -394,7 +405,8 @@ def test_stop_does_not_log_spurious_traceback(tmp_path, capfd):
     import time
     import threading
 
-    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path))
+    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path),
+                             authenticator=Authenticator(None))
     srv.start()
 
     # Open a client connection but don't send EOF
@@ -455,7 +467,8 @@ class _DisconnectedConn:
 
 def test_client_disconnect_before_reading_response_does_not_log_traceback(
         tmp_path, capfd):
-    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path))
+    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path),
+                             authenticator=Authenticator(None))
     conn = _DisconnectedConn(json.dumps({"skill": "1+2"}).encode("utf-8"))
 
     # _handle() itself must swallow the disconnect, not just _serve()'s
@@ -470,7 +483,8 @@ def test_client_disconnect_before_reading_response_does_not_log_traceback(
         f"{captured.err!r}")
 
     # The server as a whole must still be usable afterwards.
-    with MockVirtuosoServer(Session(artifact_dir=tmp_path)) as live:
+    with MockVirtuosoServer(Session(artifact_dir=tmp_path),
+                             authenticator=Authenticator(None)) as live:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(5)
         s.connect(("127.0.0.1", live.port))
@@ -522,7 +536,8 @@ def test_serve_logs_traceback_for_genuine_handle_error(tmp_path, capfd):
     """
     import threading
 
-    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path))
+    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path),
+                             authenticator=Authenticator(None))
     original_handle = srv._handle
     calls = {"n": 0}
     handled_first = threading.Event()
@@ -601,7 +616,8 @@ def test_stop_wins_toctou_race_between_accept_and_recording_connection(tmp_path)
         def __getattr__(self, name):
             return getattr(self._sock, name)
 
-    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path))
+    srv = MockVirtuosoServer(Session(artifact_dir=tmp_path),
+                             authenticator=Authenticator(None))
     accepted = threading.Event()
     resume = threading.Event()
     srv._socket = _AcceptPauseWrapper(srv._socket, accepted, resume)

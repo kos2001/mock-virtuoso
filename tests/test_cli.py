@@ -1,4 +1,5 @@
 import re
+import secrets
 import socket
 import subprocess
 import sys
@@ -6,6 +7,11 @@ import threading
 import time
 from typing import Optional
 
+from mock_virtuoso.auth import (
+    PROTOCOL_VERSION,
+    Authenticator,
+    load_or_create_token,
+)
 from mock_virtuoso.cli import main
 
 
@@ -94,14 +100,25 @@ def test_serve_banner_flushed_when_redirected(tmp_path):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(1)
             s.connect(("127.0.0.1", port))
-            # Send JSON request: {"skill": "1+2", "timeout": 30}
-            request = json.dumps({"skill": "1+2", "timeout": 30}).encode("utf-8")
+            # `serve` starts an authenticated daemon, like the real one, so the
+            # probe signs its request with the same shared token.
+            auth = Authenticator(load_or_create_token())
+            nonce, timeout = secrets.token_hex(16), 30.0
+            request = json.dumps({
+                "proto": PROTOCOL_VERSION, "nonce": nonce, "timeout": timeout,
+                "skill": "1+2",
+                "mac": auth.mac_hex("vb1-request", str(PROTOCOL_VERSION), nonce,
+                                    "%.6f" % timeout, "1+2"),
+            }).encode("utf-8")
             s.sendall(request)
             s.shutdown(socket.SHUT_WR)  # Signal EOF
             response = s.recv(1024)
             # Should get STX + "3"
             assert response.startswith(b"\x02"), f"Expected STX response, got {response!r}"
-            assert response == b"\x023", f"Expected b'\\x023', got {response!r}"
+            marker, mac, body = response[:1], response[1:65], response[65:]
+            assert (marker, body) == (b"\x02", b"3"), f"unexpected reply {response!r}"
+            assert mac.decode("ascii") == auth.mac_hex(
+                "vb1-response", nonce, marker, body), "reply was not signed by the daemon"
     finally:
         proc.terminate()
         try:
