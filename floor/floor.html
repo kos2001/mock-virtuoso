@@ -118,7 +118,12 @@ canvas:active{cursor:grabbing}
 <script>
 const LANE_COLOR = {cells:"#4493f8", analog:"#bc8cff", power:"#f85149",
                     top:"#e3b341", verify:"#3fb950"};
-const color = l => LANE_COLOR[l] || "#8b949e";
+// Lanes come from whatever briefs exist, so a job can bring its own. An
+// unnamed lane takes a stable colour from its name rather than all of them
+// sharing one grey.
+const SPARE = ["#39c5cf", "#db6d28", "#a371f7", "#7ee787", "#ff7b72", "#d29922"];
+const color = l => LANE_COLOR[l] ||
+  SPARE[[...l].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % SPARE.length];
 const esc = s => (s||"").replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
 
 let seq = 0, current = null, cells = [], pending = false, lastEventAt = 0;

@@ -32,6 +32,7 @@ from pathlib import Path
 # toolkit lives there.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from floor.lanes import read_lanes
 from toolkit.layout_reader import read_layout
 
 from mock_virtuoso.bridge_compat import match_client_auth
@@ -46,13 +47,7 @@ ARTIFACTS = Path(tempfile.mkdtemp(prefix="virtuoso-floor-"))
 HTTP_PORT = 8900
 
 # Lane name -> the role its agent plays on this floor.
-LANES: dict[str, str] = {
-    "cells": "standard-cell designer — draws leaf cells",
-    "analog": "analog designer — draws the bias cell",
-    "power": "power-grid designer — straps the row on met3",
-    "top": "integrator — floorplans and places instances",
-    "verify": "verifier — reads the design back and audits it, draws nothing",
-}
+LANES: dict[str, str] = read_lanes()
 
 STX = 0x02
 NAK = 0x15

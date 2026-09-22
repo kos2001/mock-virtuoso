@@ -17,14 +17,36 @@ ROLES = SKILL.parent / "roles"
 
 
 def lane_names() -> set[str]:
-    source = (ROOT / "floor" / "design_floor.py").read_text(encoding="utf-8")
-    block = source[source.index("LANES: dict[str, str] = {"):]
-    block = block[:block.index("}")]
-    return set(re.findall(r'"([a-z]+)":', block))
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from floor.lanes import read_lanes
+
+    return set(read_lanes(ROLES))
 
 
 def test_every_lane_has_a_brief():
+    """Lanes are derived from the briefs, so this is structural, not a hope."""
     assert lane_names() == {p.stem for p in ROLES.glob("*.md")}
+
+
+def test_a_brief_whose_heading_does_not_declare_a_lane_is_refused(tmp_path):
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from floor.lanes import read_lanes
+
+    (tmp_path / "router.md").write_text("# The router\n\nsome prose\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="first line"):
+        read_lanes(tmp_path)
+
+
+def test_a_brief_that_names_a_different_lane_than_its_file_is_refused(tmp_path):
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from floor.lanes import read_lanes
+
+    (tmp_path / "router.md").write_text("# Lane `routing` — routes\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="name the file after the lane"):
+        read_lanes(tmp_path)
 
 
 def test_the_skill_has_frontmatter_naming_itself():
