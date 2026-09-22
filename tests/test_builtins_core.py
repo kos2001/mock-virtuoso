@@ -176,3 +176,38 @@ def test_cons_onto_a_non_list_is_refused():
     """
     with pytest.raises(SkillError, match="cons"):
         run("cons(1 2)")
+
+
+# ---- for: counting, which foreach cannot do ------------------------------
+
+def test_for_counts_inclusively():
+    assert run("let((n) n = 0 for(i 1 4 n = n + i) n)") == 10
+
+
+def test_for_binds_the_variable_each_pass():
+    assert run("let((acc) acc = nil for(i 1 3 acc = cons(i acc)) acc)") == [3, 2, 1]
+
+
+def test_for_with_a_range_that_never_runs():
+    assert run("let((n) n = 7 for(i 3 1 n = 0) n)") == 7
+
+
+def test_for_leaves_the_loop_variable_where_it_found_it():
+    """The counter is the loop's, not the enclosing scope's."""
+    assert run("let((i) i = 99 for(i 1 3 i) i)") == 99
+
+
+def test_for_needs_numbers():
+    with pytest.raises(SkillError, match="for"):
+        run('for(i 1 "four" i)')
+
+
+def test_for_needs_a_name_to_count_with():
+    with pytest.raises(SkillError, match="for"):
+        run("for(1 1 4 nil)")
+
+
+def test_foreach_still_refuses_a_number():
+    """`foreach` iterates a list; counting is `for`'s job, as in SKILL."""
+    with pytest.raises(SkillError, match="foreach needs a list"):
+        run("foreach(i 4 i)")

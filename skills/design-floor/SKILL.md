@@ -56,7 +56,7 @@ dbCreateVia(cv vd 4:3 "R0")
 
 It covers the **layout** domain. Schematic (`sch*`) and Maestro (`mae*`)
 functions are not implemented and say so. It interprets a subset of SKILL:
-`car` `cdr` `cadr` `cons` `nth` `member` `mapcar` `foreach` `length` `list`
+`car` `cdr` `cadr` `cons` `nth` `member` `mapcar` `foreach` `for` `length` `list`
 `strcat` `sprintf` `let` `prog` `if` `when` `unless` and the `db*`/`ge*`/`hi*`
 layout calls. `ddGetLibList` and `dbCreateParamInst` are among the things it
 does not have.
@@ -66,6 +66,9 @@ and `ddGetLibList` are not here, and neither is `dbCreateParamInst` — place
 instances with `dbCreateParamInstByMasterName`. Probe for a function by calling
 it. A bare name is a variable, so writing `someFunction` on its own answers
 "is there a variable called that", which is a different question and always no.
+
+`foreach` walks a list and cannot count — `for(i 0 3 …)` counts, inclusive at
+both ends, and is how you place four of something without writing the list out.
 
 Slot names worth knowing before you guess: shapes carry `lpp`, a
 (layer purpose) pair — there is no `layerName` and no `purpose` — along with

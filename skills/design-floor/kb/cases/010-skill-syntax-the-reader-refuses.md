@@ -1,7 +1,7 @@
 ---
 id: 010-skill-syntax-the-reader-refuses
 outcome: failure
-signature: "unexpected character|unterminated argument list"
+signature: "unexpected character|unterminated argument list|must be followed by a name"
 lanes: cells, verify
 rule: "none"
 rule_in: none
@@ -9,7 +9,7 @@ rule_in: none
 
 # Syntax the reader will not take
 
-Two shapes of this, once each.
+Three shapes of this, once or twice each.
 
 **A subscript.** An agent tallied shapes by layer with `makeTable` and then
 `counts[layer]`, and the reader stopped at the bracket:
@@ -29,8 +29,12 @@ close, usually after building SKILL by string concatenation in the shell:
 unterminated argument list for progn
 ```
 
-Both errors point at the offending position, which is what an error of this
-kind should do, and both were fixed on the next call.
+**A stray `?` or `~>`.** An agent probing an object's slots wrote a trailing
+`~>?` and got `'?' must be followed by a name at 183`; another hit the same at
+a different offset while building a read-back expression.
+
+All of these point at the offending position, which is what an error of this
+kind should do, and each was fixed on the next call.
 
 ## Not acted on
 

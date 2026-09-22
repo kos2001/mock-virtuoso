@@ -17,7 +17,14 @@ from mock_virtuoso.skill.errors import (
     UnknownFunction,
 )
 from mock_virtuoso.skill.reader import read_all
-from mock_virtuoso.skill.values import NIL, TRUE, Symbol, SkillObject, is_truthy
+from mock_virtuoso.skill.values import (
+    NIL,
+    TRUE,
+    Symbol,
+    SkillObject,
+    is_truthy,
+    skill_repr,
+)
 
 Builtin = Callable[["Interpreter", list, dict], object]
 
@@ -380,6 +387,37 @@ def _sf_unless(it: Interpreter, node: A.Call, env: Environment) -> object:
     return result
 
 
+def _sf_for(it: Interpreter, node: A.Call, env: Environment) -> object:
+    """`for(i from to body...)` — counting, inclusive at both ends.
+
+    `foreach` walks a list and cannot count, so without this an agent that
+    wants four of something has to write the list out. Several reached for
+    `for` and one of them died mid-script doing so, leaving a half-built cell
+    behind, which is a high price for a loop.
+    """
+    if len(node.args) < 3:
+        raise SkillError("for requires a variable, a start, an end and a body")
+    var = node.args[0]
+    if not isinstance(var, A.Var):
+        raise SkillError("for variable must be a name")
+    bounds = []
+    for which, argument in (("start", node.args[1]), ("end", node.args[2])):
+        value = it.eval_node(argument, env)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise SkillError(f"for {which} must be a number, got {skill_repr(value)}")
+        bounds.append(int(value))
+    start, end = bounds
+
+    # The counter belongs to the loop: SKILL scopes it here, and a body that
+    # shadows an outer name should not leak its last value outwards.
+    inner = env.child()
+    for index in range(start, end + 1):
+        inner.define(var.name, index)
+        for form in node.args[3:]:
+            it.eval_node(form, inner)
+    return TRUE
+
+
 def _sf_foreach(it: Interpreter, node: A.Call, env: Environment) -> object:
     if len(node.args) < 2:
         raise SkillError("foreach requires a variable and a list")
@@ -497,6 +535,7 @@ _SPECIAL_FORMS = {
     "setq": _sf_setq,
     "when": _sf_when,
     "unless": _sf_unless,
+    "for": _sf_for,
     "foreach": _sf_foreach,
     "and": _sf_and,
     "&&": _sf_and,
