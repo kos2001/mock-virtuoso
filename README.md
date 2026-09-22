@@ -178,6 +178,21 @@ ROW        : I0 NAND2 R0 ((-0.2 0.0) (4.2 4.2))
 `demo/agent_sandbox.py` removes the tunnel-state file on exit, so the bridge stops
 believing a local Virtuoso is present once you stop the sandbox.
 
+## The technology
+
+Small and fixed, but real — the mock refuses anything outside it rather than
+drawing something a technology could not produce.
+
+| | |
+|---|---|
+| layers (purpose `drawing`) | `nwell` `diff` `poly` `met1` `met2` `met3` `text` |
+| via definitions | `DIFF_M1` `PO_M1` `M1_M2` `M2_M3` |
+
+`techGetTechFile(cv)` returns the technology, `techFindViaDefByName` answers
+`nil` for a name it does not have, as Virtuoso does, and `dbCreateVia` refuses
+anything that is not one of these — naming the ones that exist, so a refusal
+tells you what would have worked.
+
 ## Two front ends
 
 They do different jobs, and the split is the point.

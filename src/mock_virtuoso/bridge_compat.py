@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mock_virtuoso.auth import Authenticator
+
 
 def build_layout(client: Any, lib: str, cell: str, view: str = "layout") -> Any:
     """A layout editor for building *cell* from scratch, across bridge versions.
@@ -61,3 +63,19 @@ def clear_layout(client: Any, lib: str, cell: str, view: str = "layout",
         if getattr(getattr(result, "status", None), "value", None) != "success":
             return False
     return False
+
+
+def match_client_auth(server: Any, client: Any) -> None:
+    """Give *server* whatever bridge token *client* holds.
+
+    The bridge gained token authentication partway through this project's
+    life. Rather than sniff versions, the daemon adopts the client's secret: a
+    client new enough to carry one gets an authenticated daemon sharing it, and
+    an older tokenless client gets the legacy wire it expects. Both ends agree
+    by construction, which is not something a version check can promise.
+
+    Call it between constructing the server and starting it -- the port is
+    bound by the constructor, so the client can be built in between, and
+    nothing is served until start().
+    """
+    server.auth = Authenticator(getattr(client, "daemon_token", None))

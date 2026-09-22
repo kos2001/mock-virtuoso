@@ -143,9 +143,11 @@ def install(session) -> None:
             # techFindViaDefByName answers nil for a name the technology does
             # not have, and this is where that nil has to stop. Drawing it
             # anyway would put a via on a master that does not exist.
+            known = ", ".join(vd.name for vd in tech_file.get_prop("viaDefs"))
             raise SkillError(
                 "dbCreateVia: expected a via definition from "
-                f"techFindViaDefByName, got {skill_repr(via_def)}")
+                f"techFindViaDefByName, got {skill_repr(via_def)}; "
+                f"this technology has {known}")
         xy = list(args[2])
         orient = args[3] if len(args) > 3 else "R0"
         shape = Shape("via", "via", "drawing",
@@ -234,6 +236,11 @@ def install(session) -> None:
         return TRUE
 
     def db_purge(it, args, kwargs):
+        # dbPurge forces a cellview out of memory. It is not a delete: the
+        # cell stays in the library and reopening finds it. What dies is the
+        # handle, and saying otherwise leaves callers holding one that
+        # Virtuoso would have invalidated.
+        design.close_cellview(_as_cellview(args[0]))
         return TRUE
 
     def db_delete_object(it, args, kwargs):

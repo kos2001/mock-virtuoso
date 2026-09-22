@@ -7,7 +7,7 @@ endpoint had two shapes depending on which server answered.
 
 import pytest
 
-from mock_virtuoso.auth import Authenticator
+from mock_virtuoso.bridge_compat import match_client_auth
 from mock_virtuoso.bridge_compat import build_layout
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
@@ -20,7 +20,7 @@ def client(tmp_path):
 
     mock = MockVirtuosoServer(Session(artifact_dir=tmp_path))
     bridge = VirtuosoClient.local(port=mock.port)
-    mock.auth = Authenticator(getattr(bridge, "daemon_token", None))
+    match_client_auth(mock, bridge)
     mock.start()
     try:
         yield bridge

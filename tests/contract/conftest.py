@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from mock_virtuoso.auth import Authenticator
+from mock_virtuoso.bridge_compat import match_client_auth
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
 
@@ -23,7 +23,7 @@ def _match_client_auth(mock, client) -> None:
     construction, which is not something a version check can promise -- and
     whichever wire is installed is the one these tests exercise for real.
     """
-    mock.auth = Authenticator(getattr(client, "daemon_token", None))
+    match_client_auth(mock, client)
 
 
 @pytest.fixture

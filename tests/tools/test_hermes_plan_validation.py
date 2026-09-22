@@ -146,13 +146,13 @@ def api_server(tmp_path, monkeypatch):
     """The API server's executor wired to its own mock."""
     from virtuoso_bridge import VirtuosoClient
 
-    from mock_virtuoso.auth import Authenticator
+    from mock_virtuoso.bridge_compat import match_client_auth
     from mock_virtuoso.server import MockVirtuosoServer
     from mock_virtuoso.session import Session
 
     mock = MockVirtuosoServer(Session(artifact_dir=tmp_path))
     client = VirtuosoClient.local(port=mock.port)
-    mock.auth = Authenticator(getattr(client, "daemon_token", None))
+    match_client_auth(mock, client)
     mock.start()
     monkeypatch.setattr(api, "CLIENT", client)
     try:

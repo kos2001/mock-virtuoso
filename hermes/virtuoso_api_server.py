@@ -30,7 +30,7 @@ import urllib.request
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from mock_virtuoso.auth import Authenticator
+from mock_virtuoso.bridge_compat import match_client_auth
 from mock_virtuoso.bridge_compat import build_layout, clear_layout
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
@@ -425,12 +425,7 @@ def main() -> int:
     mock = MockVirtuosoServer(Session(artifact_dir=pathlib.Path(tempfile.mkdtemp())),
                               port=args.mock_port)
     CLIENT = VirtuosoClient.local(port=mock.port)
-    # The bridge gained token auth partway through this project's life. Rather
-    # than sniff versions, the daemon adopts whatever secret this client holds:
-    # a client new enough to carry one gets an authenticated daemon sharing it,
-    # an older tokenless client gets the legacy wire. The port is bound by the
-    # constructor and nothing is served until start(), so this fits in between.
-    mock.auth = Authenticator(getattr(CLIENT, "daemon_token", None))
+    match_client_auth(mock, CLIENT)
     mock.start()
 
     httpd = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)

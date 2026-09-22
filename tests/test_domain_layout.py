@@ -236,8 +236,10 @@ def test_db_close_removes_cellview_and_invalidates_handle(session):
         session.evaluate(f"{handle}~>cellName")
 
 
-def test_db_purge_returns_true(session):
-    assert session.evaluate("dbPurge()") == TRUE
+def test_db_purge_needs_a_cellview(session):
+    """It used to answer t to dbPurge() with no argument at all."""
+    with pytest.raises(SkillError):
+        session.evaluate("dbPurge()")
 
 
 def test_db_get_open_cellviews_grows_and_shrinks(session):
@@ -474,3 +476,50 @@ def test_a_bare_string_is_not_a_via_definition(session):
         session.evaluate(
             'let((cv) cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "a") '
             'dbCreateVia(cv "M1_M2" 0:0 "R0"))')
+
+
+# ---- Stubs that used to claim success -----------------------------------
+
+def test_csh_refuses_rather_than_claiming_the_command_ran(session):
+    """The mock must not run shell commands -- and must not pretend it did.
+
+    `client.run_shell_command()` sends csh(...) and reads `t` as success, so a
+    stub returning t reported every shell command as having succeeded. Not
+    running it is right; saying it worked is the failure this mock exists to
+    prevent.
+    """
+    with pytest.raises(SkillError, match="does not run shell commands"):
+        session.evaluate('csh("streamOut -library LIB -topCell C")')
+
+
+def test_db_purge_releases_the_cellview(session):
+    """dbPurge forces a cellview out of memory; the handle dies with it."""
+    handle = session.evaluate(
+        'let((cv) cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "a") '
+        'dbCreateRect(cv list("met1" "drawing") list(0:0 2:2)) '
+        'dbSave(cv) cv)').handle
+    assert session.evaluate('dbPurge(%s)' % handle) is TRUE
+    with pytest.raises(SkillError, match="stale or unknown object handle"):
+        session.evaluate(f'{handle}~>shapes')
+
+
+def test_db_purge_does_not_delete_the_cell(session):
+    """Purging is a memory operation, not a delete: reopening finds the cell."""
+    session.evaluate(
+        'let((cv) cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "a") '
+        'dbCreateRect(cv list("met1" "drawing") list(0:0 2:2)) '
+        'dbSave(cv) dbPurge(cv))')
+    assert session.evaluate(
+        'let((cv) cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "r") '
+        'length(cv~>shapes))') == 1
+
+
+def test_a_refused_via_says_which_definitions_exist(session):
+    """Loud is not enough; a refusal should say what would have worked."""
+    with pytest.raises(SkillError) as excinfo:
+        session.evaluate(
+            'let((cv) cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "a") '
+            'dbCreateVia(cv techFindViaDefByName(techGetTechFile(cv) "M1M2") 0:0 "R0"))')
+    message = str(excinfo.value)
+    assert "M1_M2" in message and "M2_M3" in message
+    assert "DIFF_M1" in message and "PO_M1" in message

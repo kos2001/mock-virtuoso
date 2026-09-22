@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from toolkit.layout_reader import read_layout
 
-from mock_virtuoso.auth import Authenticator
+from mock_virtuoso.bridge_compat import match_client_auth
 from mock_virtuoso.bridge_compat import build_layout, clear_layout
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
@@ -218,12 +218,7 @@ def main() -> int:
     global CLIENT
     mock = MockVirtuosoServer(Session(artifact_dir=ARTIFACTS))
     CLIENT = VirtuosoClient.local(port=mock.port)
-    # The bridge gained token auth partway through this project's life. Rather
-    # than sniff versions, the daemon adopts whatever secret this client holds:
-    # a client new enough to carry one gets an authenticated daemon sharing it,
-    # an older tokenless client gets the legacy wire. The port is bound by the
-    # constructor and nothing is served until start(), so this fits in between.
-    mock.auth = Authenticator(getattr(CLIENT, "daemon_token", None))
+    match_client_auth(mock, CLIENT)
     mock.start()
     log("sys", f"mock-virtuoso listening on 127.0.0.1:{mock.port}")
     log("sys", "VirtuosoClient connected — no Cadence licence, no EDA server")

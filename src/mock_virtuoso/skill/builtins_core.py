@@ -123,8 +123,14 @@ def install(interp: Interpreter) -> None:
         return float(args[0])
 
     def csh(it, args, kwargs):
-        # 셸을 실제로 실행하지 않는다. 테스트 더블이 시스템을 건드리면 안 된다.
-        return TRUE
+        # 셸을 실제로 실행하지 않는다 — 테스트 더블이 시스템을 건드리면 안 된다.
+        # 다만 t를 돌려주면 client.run_shell_command()가 그걸 성공으로 읽어,
+        # 실행된 적 없는 명령이 성공했다고 보고된다. 실행하지 않는 것은 옳고,
+        # 성공했다고 말하는 것은 이 mock이 없애려는 바로 그 실패다.
+        command = args[0] if args else ""
+        raise SkillError(
+            "csh: this Virtuoso does not run shell commands "
+            f"({skill_repr(command)} was not executed)")
 
     def stringp(it, args, kwargs):
         return TRUE if isinstance(args[0], str) else NIL
