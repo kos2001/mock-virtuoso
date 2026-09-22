@@ -233,20 +233,41 @@ def test_client_no_shutdown_times_out_server_survives(server):
 # ---- Finding 3: Timeout deadline is real ----
 
 def test_wall_clock_timeout_triggers(server):
-    """A slow SKILL that exceeds wall-clock timeout should return TimeoutError."""
-    # Large workload that takes ~0.5+ seconds, timeout of 0.05 seconds ensures 10x margin
-    # Workload: 50000-item foreach takes ~0.5 seconds on reference machine
+    """A slow SKILL that exceeds the wall-clock timeout returns TimeoutError.
+
+    Everything here is measured against this machine's own speed. An absolute
+    bound just encodes the speed of whoever last ran the test and fails on
+    slower CI hardware for reasons that have nothing to do with the deadline.
+
+    The workload is cheap to parse and expensive to run, so the two timings
+    differ by evaluation time rather than by how long it took to read 2 MB of
+    request off the socket. Its size is capped by the interpreter's own step
+    budget, which is why the deadline is small rather than the workload large.
+    """
     import time
-    large_list = " ".join(str(i) for i in range(50000))
+    deadline = 0.02
+    numbers = " ".join(str(i) for i in range(80))
+    skill = (f"foreach(a list({numbers}) foreach(b list({numbers}) "
+             f"foreach(c list({numbers}) c)))")
+
     start = time.monotonic()
-    response = request(server.port, f"foreach(i list({large_list}) i)", timeout=0.05)
-    elapsed = time.monotonic() - start
+    full = request(server.port, skill, timeout=60)
+    untimed = time.monotonic() - start
+    assert full.startswith(b"\x02"), f"workload should succeed untimed, got {full!r}"
+    assert untimed > 4 * deadline, (
+        f"workload ran in {untimed:.3f}s, too close to the {deadline}s deadline to tell "
+        "a fired deadline from a finished job -- raise the nesting, or lower the deadline")
+
+    start = time.monotonic()
+    response = request(server.port, skill, timeout=deadline)
+    timed = time.monotonic() - start
 
     assert response == b"\x15TimeoutError", f"Expected timeout, got {response!r}"
-    # Verify timeout triggered: elapsed should be ~0.05 + overhead, not 0.5 seconds
-    # The margin between timeout (0.05s) and full workload (0.5s) is 10x
-    assert elapsed < 0.2, f"Timeout should fire before full workload, took {elapsed:.3f}s"
-    assert elapsed >= 0.04, f"Should respect the timeout deadline, took {elapsed:.3f}s"
+    assert timed >= deadline / 2, (
+        f"Gave up after {timed:.3f}s on a {deadline}s deadline -- it should run until "
+        "the deadline, not refuse the work outright")
+    assert timed < untimed / 2, (
+        f"Deadline should cut the work short: {timed:.3f}s against {untimed:.3f}s untimed")
 
 
 # ---- Finding 4: Errors logged and marked ----
@@ -311,8 +332,9 @@ def test_stop_terminates_thread_and_is_idempotent(tmp_path):
     assert srv._thread.is_alive()
 
     srv.stop()
-    # Give a moment for thread to fully stop
-    time.sleep(0.1)
+    # stop() already joins; join again with room to spare rather than sleeping a
+    # fixed amount and hoping, which is what made this fail on slower runners.
+    srv._thread.join(timeout=10)
     assert not srv._thread.is_alive(), "Thread should be dead after stop()"
 
     # Calling stop() again should not raise

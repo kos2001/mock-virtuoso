@@ -1,6 +1,7 @@
 import re
 import socket
 import subprocess
+import sys
 import threading
 import time
 from typing import Optional
@@ -59,7 +60,7 @@ def test_serve_banner_flushed_when_redirected(tmp_path):
     """Verify banner appears quickly even when stdout is redirected (not a TTY)."""
     # Run serve with port 0 and capture stdout
     proc = subprocess.Popen(
-        [".venv/bin/python", "-m", "mock_virtuoso.cli", "serve", "--port", "0"],
+        [sys.executable, "-m", "mock_virtuoso.cli", "serve", "--port", "0"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -114,7 +115,7 @@ def test_serve_responds_to_sigint(tmp_path):
     """Verify serve stops cleanly on SIGINT (Ctrl-C) within reasonable time."""
     # Run serve with port 0
     proc = subprocess.Popen(
-        [".venv/bin/python", "-m", "mock_virtuoso.cli", "serve", "--port", "0"],
+        [sys.executable, "-m", "mock_virtuoso.cli", "serve", "--port", "0"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

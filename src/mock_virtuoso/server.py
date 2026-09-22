@@ -21,6 +21,11 @@ STX = b"\x02"
 NAK = b"\x15"
 _RECV = 65536
 _SOCKET_TIMEOUT = 5.0  # Socket timeout for client connections
+# How long accept() blocks before the loop re-checks whether it should stop.
+# Closing a listening socket does not reliably interrupt a blocked accept() on
+# every platform -- notably not on Linux -- so the loop must be able to wake up
+# on its own rather than relying on stop() to break it out.
+_ACCEPT_POLL = 0.2
 
 
 def build_response(session: Session, skill_code: str, timeout: float) -> bytes:
@@ -48,6 +53,7 @@ class MockVirtuosoServer:
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.bind((host, port))
         self._socket.listen(1)
+        self._socket.settimeout(_ACCEPT_POLL)
         self.port = self._socket.getsockname()[1]
         self._thread: threading.Thread | None = None
         self._stopping = threading.Event()
@@ -102,8 +108,10 @@ class MockVirtuosoServer:
         while not self._stopping.is_set():
             try:
                 conn, _ = self._socket.accept()
+            except socket.timeout:
+                continue          # nothing waiting; re-check `_stopping`
             except OSError:
-                return
+                return            # socket closed under us
 
             # Record the connection and check `_stopping` atomically, under
             # the same lock `stop()` uses to set `_stopping` and take
