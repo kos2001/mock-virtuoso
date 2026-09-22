@@ -18,7 +18,8 @@ CASES = KB / "cases"
 SRC = ROOT / "src"
 
 sys.path.insert(0, str(ROOT))
-from floor.harvest import group_failures, load_cases, match_case  # noqa: E402
+from floor.harvest import (group_failures, load_cases, match_case,  # noqa: E402
+                           template)
 
 ALL = load_cases(CASES)
 REQUIRED = ("id", "outcome", "lanes", "audience", "rule", "rule_in")
@@ -108,6 +109,20 @@ def test_the_harvester_finds_the_case_for_a_known_failure():
 
 def test_the_harvester_admits_when_it_has_no_case():
     assert match_case("something nobody has ever seen before", ALL) is None
+
+
+def test_the_template_offers_every_field_the_suite_requires():
+    """Harvest says which case to write; it should say what a case needs.
+
+    The fields are checked here and were described only in the README, so the
+    loop was: read the output here, write the case there, learn from a red
+    test which field was forgotten. A seventh required field must appear in
+    the template too, or this fails.
+    """
+    printed = template(19)
+    for key in REQUIRED + ("signature",):
+        assert key in printed, f"the harvest template should offer {key}"
+    assert "019-" in printed, "the template should carry the next number"
 
 
 def test_the_readme_explains_the_loop():
