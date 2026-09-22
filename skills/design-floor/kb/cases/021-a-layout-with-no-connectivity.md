@@ -62,3 +62,21 @@ not found: GND` for a name that is not there.
 `cv~>terminals`, and reports the two separately. Where they disagree the cell
 has names but no connectivity: it places, it draws, and nothing can be traced
 through it.
+
+## The floor was still building cells without any
+
+Adding the functions was not the same as using them. Asked, in words, for "an
+INV cell with VDD/GND/A/Y pins", the floor answered with four `text` labels
+and zero nets, and the answer read as a success — the planner had no way to
+express a pin, the read-back never looked for one, and nothing said the cell
+could not be traced.
+
+A `pin` op now draws its rectangle *and* gives the cell connectivity in one
+operation, because splitting them is exactly how a cell ends up with port
+names and nothing behind them. It is refused on the `text` layer, its `dir`
+must be one `dbCreateTerm` takes, and its net name must be an identifier
+since it is interpolated into SKILL.
+
+The read-back reports `nets: VDD(1) GND(1) A(1) Y(1)`, and where a cell has
+text labels and no nets it says so in those words rather than leaving the
+reader to notice an absence.

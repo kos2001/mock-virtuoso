@@ -863,3 +863,89 @@ def test_the_answer_says_which_cell_was_emptied():
     text = api.answer_text({"lib": "L", "cell": "C"}, report,
                            "hermes (rule-corrected)", 1.0)
     assert "L/THIN was emptied" in text
+
+
+# -- pins, so a cell can be traced through --------------------------------
+
+def test_a_pin_is_one_op_because_it_is_metal_and_connectivity():
+    """Splitting them is how a cell ends up with pin names and nothing to
+    trace — the floor's own output did, for every cell it had ever built."""
+    plan = api.validate({"lib": "L", "cell": "INV", "ops": [
+        {"op": "pin", "net": "VDD", "dir": "inputOutput", "layer": "met1",
+         "x0": 0, "y0": 8, "x1": 10, "y1": 8.5}]})
+    skill = api._emit(plan["ops"][0], "L")
+    assert 'dbCreateNet(cv "VDD")' in skill
+    assert 'dbCreateTerm(n "VDD" "inputOutput")' in skill
+    assert "dbCreatePin(n f)" in skill
+    assert "dbCreateRect" in skill
+
+
+def test_a_second_pin_on_a_net_does_not_make_a_second_terminal():
+    skill = api._emit(api.validate({"lib": "L", "cell": "C", "ops": [
+        {"op": "pin", "net": "VDD", "layer": "met1",
+         "x0": 0, "y0": 0, "x1": 1, "y1": 1}]})["ops"][0], "L")
+    assert "when(!n~>terminals" in skill
+
+
+def test_a_pin_on_the_text_layer_is_refused():
+    with pytest.raises(api.PlanError) as exc:
+        api.validate({"lib": "L", "cell": "C", "ops": [
+            {"op": "pin", "net": "VDD", "layer": "text",
+             "x0": 0, "y0": 0, "x1": 1, "y1": 1}]})
+    assert "not annotation" in str(exc.value)
+
+
+def test_a_pin_direction_must_be_one_dbcreateterm_takes():
+    with pytest.raises(api.PlanError) as exc:
+        api.validate({"lib": "L", "cell": "C", "ops": [
+            {"op": "pin", "net": "VDD", "dir": "sideways", "layer": "met1",
+             "x0": 0, "y0": 0, "x1": 1, "y1": 1}]})
+    assert "inputOutput" in str(exc.value)
+
+
+def test_a_net_name_is_an_identifier_because_it_is_interpolated_into_skill():
+    with pytest.raises(api.PlanError):
+        api.validate({"lib": "L", "cell": "C", "ops": [
+            {"op": "pin", "net": 'V") dbDeleteObject(cv) ("', "layer": "met1",
+             "x0": 0, "y0": 0, "x1": 1, "y1": 1}]})
+
+
+def test_a_pin_defaults_to_inputoutput():
+    plan = api.validate({"lib": "L", "cell": "C", "ops": [
+        {"op": "pin", "net": "VDD", "layer": "met1",
+         "x0": 0, "y0": 0, "x1": 1, "y1": 1}]})
+    assert plan["ops"][0]["dir"] == "inputOutput"
+
+
+# -- and the report says when a cell cannot be traced ---------------------
+
+def test_the_nets_a_cell_carries_are_reported():
+    text = api.answer_text(
+        {"lib": "L", "cell": "INV"},
+        _report({"INV": {"shapes_by_layer": {"met1": 4}, "bBox": "b",
+                         "instances": [], "drc": [],
+                         "nets": ["VDD(1)", "GND(1)"]}}),
+        "hermes", 1.0)
+    assert "nets: VDD(1) GND(1)" in text
+
+
+def test_labels_without_nets_are_named_as_the_gap_they_are():
+    """It places, it draws, and nothing can be traced through it."""
+    text = api.answer_text(
+        {"lib": "L", "cell": "INV"},
+        _report({"INV": {"shapes_by_layer": {"met1": 4, "text": 4}, "bBox": "b",
+                         "instances": [], "drc": [], "nets": []}}),
+        "hermes", 1.0)
+    assert "4 text labels, but nothing carries a net" in text
+
+
+def test_a_cell_with_neither_is_not_nagged_about_connectivity():
+    """A placement-only top cell has no ports of its own to miss."""
+    text = api.answer_text(
+        {"lib": "L", "cell": "ROW"},
+        _report({"ROW": {"shapes_by_layer": {}, "bBox": "b", "drc": [],
+                         "instances": [{"name": "X0", "cell": "INV",
+                                        "orient": "R0", "bbox": "[]"}],
+                         "nets": []}}),
+        "hermes", 1.0)
+    assert "nets:" not in text
