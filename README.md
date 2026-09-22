@@ -178,6 +178,40 @@ ROW        : I0 NAND2 R0 ((-0.2 0.0) (4.2 4.2))
 `demo/agent_sandbox.py` removes the tunnel-state file on exit, so the bridge stops
 believing a local Virtuoso is present once you stop the sandbox.
 
+## Natural-language API (`hermes/`)
+
+`hermes/virtuoso_api_server.py` is an **OpenAI-compatible** server that turns a plain
+request into a real layout:
+
+```bash
+.venv/bin/python hermes/virtuoso_api_server.py --port 8750
+curl http://127.0.0.1:8750/v1/chat/completions -H 'Content-Type: application/json' -d '{
+  "model":"virtuoso-fde",
+  "messages":[{"role":"user","content":"STDLIB에 NAND2 셀을 정의하고 ROW에 4개 배치해줘"}]}'
+```
+
+Pipeline: request → planner → **validation** → `virtuoso-bridge-lite` builders → mock →
+read back → answer.
+
+The planner is pluggable. `--planner hermes` asks a hermes-agent OpenAI server for a JSON
+plan (that model does not do OpenAI tool-calling, so it plans in JSON and this server
+executes); `--planner rules` is a deterministic parser that needs no LLM at all;
+`auto` prefers hermes and falls back.
+
+Two properties worth stating plainly:
+
+**The model's output is never executed.** Every plan passes a strict validator first —
+op whitelist, layer whitelist, numeric coordinates with bounds, identifier-only cell and
+instance names, a plan-size cap. Injection attempts like a cell named
+`C") dbDeleteObject(cv) ("` or a coordinate of `0; dbDeleteObject(cv)` are rejected
+before anything reaches the bridge, and a validated op with no builder raises rather than
+being skipped.
+
+**The answer is grounded in the database, not the plan.** After executing, the server
+reads the design back through the bridge's own reader and reports the actual per-layer
+counts, bounding boxes and instance transforms. If a plan instantiates a cell it never
+defined, the reply says so instead of returning an empty box.
+
 ## Known upstream issues
 
 While building the contract tests (Task 12), we found that
