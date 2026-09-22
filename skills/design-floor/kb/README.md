@@ -35,8 +35,9 @@ answer was that the mock was wrong.
 Front matter, then prose. `signature` is a regex matched against the daemon's
 reply; `rule` is the sentence that must appear in the file named by `rule_in` —
 a path relative to the skill root, one level above this directory —
-which `tests/test_design_floor_kb.py` checks. A case whose lesson landed in the
-mock's own behaviour rather than in a document sets `rule_in: mock`.
+which `tests/test_design_floor_kb.py` checks. A case whose lesson landed in code
+rather than in a document names where: `rule_in: mock` for the mock's own
+behaviour, `rule_in: front-end` for the screen.
 
 ```yaml
 ---

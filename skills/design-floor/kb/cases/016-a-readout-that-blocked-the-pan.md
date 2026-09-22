@@ -2,8 +2,8 @@
 id: 016-a-readout-that-blocked-the-pan
 outcome: failure
 lanes: request
-rule: "none"
-rule_in: none
+rule: "The readout is optional decoration and used not to be"
+rule_in: front-end
 ---
 
 # Zoom worked, panning did not
