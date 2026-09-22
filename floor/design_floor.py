@@ -25,15 +25,20 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import sys
+from pathlib import Path
+
+# Run as a script, so the repository root is not on sys.path; the shared
+# toolkit lives there.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from toolkit.layout_reader import read_layout
+
 from mock_virtuoso.auth import Authenticator
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
 
 from virtuoso_bridge import ExecutionStatus, VirtuosoClient
-from virtuoso_bridge.virtuoso.layout import (
-    layout_read_geometry,
-    parse_layout_geometry_output,
-)
 
 HERE = Path(__file__).parent
 WEBAPP = HERE.parent / "webapp"
@@ -197,38 +202,6 @@ TRANSCRIPT = Transcript()
 READER: VirtuosoClient | None = None   # reads the DB for the UI, off the lanes
 
 
-def geometry(lib: str, cell: str) -> dict:
-    """Read a cellview back through the bridge, masters included, for drawing.
-
-    This client talks to the mock directly rather than through a lane, so the
-    observatory's own polling never shows up in the agents' transcript.
-    """
-    assert READER is not None
-    res = READER.execute_skill(layout_read_geometry(lib, cell))
-    if res.status is not ExecutionStatus.SUCCESS:
-        return {"ok": False, "errors": res.errors, "rows": [], "masters": {}}
-    rows = []
-    for raw in parse_layout_geometry_output(res.output or ""):
-        row = dict(raw)
-        for key in ("bbox", "points", "xy"):
-            value = row.get(key)
-            if value is not None:
-                row[key] = [list(p) for p in value] if isinstance(value, list) else list(value)
-        for key in ("orient", "text"):
-            if isinstance(row.get(key), str):
-                row[key] = row[key].strip('"')
-        rows.append(row)
-
-    masters: dict[str, list] = {}
-    for row in rows:
-        if row.get("kind") == "instance":
-            key = f"{row.get('lib')}/{row.get('cell')}"
-            if key not in masters:
-                sub = geometry(row.get("lib"), row.get("cell"))
-                masters[key] = [s for s in sub["rows"] if s.get("kind") == "shape"]
-    return {"ok": True, "rows": rows, "masters": masters}
-
-
 class Handler(BaseHTTPRequestHandler):
     def _send(self, payload: dict, code: int = 200) -> None:
         self._raw(json.dumps(payload).encode(), "application/json", code)
@@ -260,8 +233,8 @@ class Handler(BaseHTTPRequestHandler):
             payload["events"] = TRANSCRIPT.since(since)
             return self._send(payload)
         if url.path == "/api/geometry":
-            return self._send(geometry(query.get("lib", ["STDLIB"])[0],
-                                       query.get("cell", ["INV"])[0]))
+            return self._send(read_layout(READER, query.get("lib", ["STDLIB"])[0],
+                                          query.get("cell", ["INV"])[0]))
         self._send({"error": "not found"}, 404)
 
 

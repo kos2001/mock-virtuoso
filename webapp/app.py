@@ -17,6 +17,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import sys
+from pathlib import Path
+
+# Run as a script, so the repository root is not on sys.path; the shared
+# toolkit lives there.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from toolkit.layout_reader import read_layout
+
 from mock_virtuoso.auth import Authenticator
 from mock_virtuoso.bridge_compat import build_layout, clear_layout
 from mock_virtuoso.server import MockVirtuosoServer
@@ -29,9 +38,7 @@ from virtuoso_bridge.virtuoso.layout import (
     layout_create_path,
     layout_create_rect,
     layout_create_via_by_name,
-    layout_read_geometry,
     layout_select_box,
-    parse_layout_geometry_output,
 )
 
 HERE = Path(__file__).parent
@@ -105,35 +112,6 @@ def build_top(lib: str, top: str, child: str, count: int) -> dict:
     return {"ok": True, "instances": count}
 
 
-def geometry(lib: str, cell: str) -> dict:
-    assert CLIENT is not None
-    res = CLIENT.execute_skill(layout_read_geometry(lib, cell))
-    if res.status is not ExecutionStatus.SUCCESS:
-        return {"ok": False, "errors": res.errors, "rows": []}
-    rows = parse_layout_geometry_output(res.output or "")
-    out = []
-    for r in rows:
-        row = {k: v for k, v in r.items()}
-        for key in ("bbox", "points", "xy"):
-            if row.get(key) is not None:
-                v = row[key]
-                row[key] = [list(p) for p in v] if isinstance(v, list) else list(v)
-        if isinstance(row.get("orient"), str):
-            row["orient"] = row["orient"].strip('"')
-        if isinstance(row.get("text"), str):
-            row["text"] = row["text"].strip('"')
-        out.append(row)
-
-    masters: dict[str, list] = {}
-    for r in out:
-        if r.get("kind") == "instance":
-            key = f"{r.get('lib')}/{r.get('cell')}"
-            if key not in masters:
-                sub = geometry(r.get("lib"), r.get("cell"))
-                masters[key] = [s for s in sub.get("rows", []) if s.get("kind") == "shape"]
-    return {"ok": True, "rows": out, "masters": masters}
-
-
 def snapshot() -> dict:
     assert CLIENT is not None
     lib, cell, view = CLIENT.get_current_design()
@@ -190,7 +168,8 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/state":
             return self._send(snapshot())
         if u.path == "/api/geometry":
-            return self._send(geometry(q.get("lib", ["DEMO"])[0], q.get("cell", ["INV"])[0]))
+            return self._send(read_layout(CLIENT, q.get("lib", ["DEMO"])[0],
+                                          q.get("cell", ["INV"])[0]))
         self._send({"error": "not found"}, 404)
 
     def do_POST(self) -> None:

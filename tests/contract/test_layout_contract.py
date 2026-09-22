@@ -314,31 +314,53 @@ def test_unknown_function_surfaces_as_bridge_error(bridge_client):
     assert any("unknown function: noSuchFn" in e for e in result.errors)
 
 
-# -- 7/8. layout_read_summary의 업스트림 버그를 있는 그대로 고정한다 ---------
+# -- 7/8. layout_read_summary: 설치된 브릿지가 어느 쪽이든 맞춘다 -----------
 #
-# virtuoso-bridge-lite의 layout_read_summary가 만드는 SKILL은
-#     foreach(inst cv~>instances buf = strcat(...) return(buf)))
-# 로, return(buf)가 foreach 본문 "안"에 있다. 이건 우리 mock의 버그가
-# 아니라 브릿지가 내보내는 SKILL 자체의 결함이며, mock은 그 SKILL을
-# 충실히 실행할 뿐이다. Arcadia가 이 함수를 고치면 아래 두 단언은
-# 뒤집혀야 한다.
+# virtuoso-bridge-lite의 layout_read_summary는 `return(buf)`를 foreach 본문
+# "안"에 둔다. mock의 버그가 아니라 브릿지가 내보내는 SKILL 자체의 결함이고,
+# mock은 그 SKILL을 충실히 실행할 뿐이다.
 #
 # 2026-09-22: 업스트림에 리포트했다 —
 #     https://github.com/Arcadia-1/virtuoso-bridge-lite/issues/158
-# 그 시점의 origin/main에도 그대로 남아 있음을 확인했다.
+#
+# 아래 두 테스트는 버그를 고정하지 않는다. 방출된 SKILL을 보고 설치된 브릿지가
+# 어느 쪽인지 판단한 뒤, 그에 맞는 동작을 요구한다. 버그를 그대로 박아두면
+# 업스트림이 고치는 순간 우리 스위트가 빨개지고, 고쳐졌다고 가정하면 지금
+# 깨진다. 어느 쪽도 사실이 아니라 시점의 문제일 뿐이므로, 사실을 읽는다.
 
 
-def test_read_summary_upstream_bug_zero_instances_yields_nil(bridge_client):
+def _summary_returns_inside_the_loop(skill: str) -> bool:
+    """방출된 SKILL에서 return(buf)가 foreach(inst ...) 본문 안에 있는가."""
+    start = skill.index("foreach(inst")
+    depth = 0
+    for i in range(start, len(skill)):
+        if skill[i] == "(":
+            depth += 1
+        elif skill[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return "return(" in skill[start:i + 1]
+    raise AssertionError("foreach(inst ...) 절의 괄호가 맞지 않는다")
+
+
+def test_read_summary_with_no_instances(bridge_client):
     client, _ = bridge_client
     _run(client, layout_bind_current_or_open_cell_view("LIB", "CELL"))
-    # 인스턴스가 0개면 foreach 본문이 한 번도 실행되지 않아 return(buf)가
-    # 절대 실행되지 않는다. prog는 그러면 nil을 낸다.
-    result = client.execute_skill(layout_read_summary("LIB", "CELL"))
+
+    skill = layout_read_summary("LIB", "CELL")
+    result = client.execute_skill(skill)
     assert result.status == ExecutionStatus.SUCCESS
-    assert result.output == "nil"
+
+    if _summary_returns_inside_the_loop(skill):
+        # 인스턴스가 0개면 foreach 본문이 한 번도 실행되지 않아 return(buf)가
+        # 절대 실행되지 않는다. prog는 그러면 nil을 낸다.
+        assert result.output == "nil"
+    else:
+        assert "0 instances" in result.output
+        assert result.output != "nil"
 
 
-def test_read_summary_upstream_bug_truncates_after_first_instance(bridge_client):
+def test_read_summary_with_three_instances(bridge_client):
     client, _ = bridge_client
     _run(client,
          layout_bind_current_or_open_cell_view("LIB", "MASTER"),
@@ -352,15 +374,19 @@ def test_read_summary_upstream_bug_truncates_after_first_instance(bridge_client)
          layout_create_param_inst("LIB", "MASTER", "layout", "I2",
                                    10.0, 10.0, "R0"))
 
-    result = client.execute_skill(layout_read_summary("LIB", "TOP"))
+    skill = layout_read_summary("LIB", "TOP")
+    result = client.execute_skill(skill)
     assert result.status == ExecutionStatus.SUCCESS
-    # 헤더는 진짜 개수(3)를 주장하지만...
+    # 헤더는 어느 쪽이든 진짜 개수를 말한다.
     assert "0 shapes" in result.output
     assert "3 instances" in result.output
-    # ...본문은 foreach의 첫 반복에서 return되어 첫 인스턴스만 나온다.
-    assert "inst: I0" in result.output
-    assert "inst: I1" not in result.output
-    assert "inst: I2" not in result.output
+
+    listed = [name for name in ("I0", "I1", "I2") if f"inst: {name}" in result.output]
+    if _summary_returns_inside_the_loop(skill):
+        # 본문은 foreach의 첫 반복에서 return되어 첫 인스턴스만 나온다.
+        assert listed == ["I0"]
+    else:
+        assert listed == ["I0", "I1", "I2"]
 
 
 # -- 편집 경로: select 후 delete가 실제로 도형 개수를 바꾼다 -----------------

@@ -178,6 +178,21 @@ ROW        : I0 NAND2 R0 ((-0.2 0.0) (4.2 4.2))
 `demo/agent_sandbox.py` removes the tunnel-state file on exit, so the bridge stops
 believing a local Virtuoso is present once you stop the sandbox.
 
+## Two front ends
+
+They do different jobs, and the split is the point.
+
+| | `webapp/` — Layout Workbench (:8808) | `floor/` — Agent Design Floor (:8900) |
+|---|---|---|
+| who drives | you | agents, each on its own lane |
+| what you do | build cells, select, fetch, run SKILL | watch |
+| shows | one design, with the tool's controls | who ran what, the reply, and the layout growing |
+| mocks | one, private to the page | one, shared by every lane |
+
+Both draw with `webapp/render.js` and read through `toolkit/layout_reader.py`,
+so a cellview looks the same in either — and `toolkit/` is where anything both
+tools need belongs, since `mock_virtuoso` itself never imports the bridge.
+
 ## Bridge token authentication
 
 The daemon the bridge ships authenticates every request, and so does this mock.
