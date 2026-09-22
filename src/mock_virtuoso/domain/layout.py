@@ -25,10 +25,29 @@ def _lpp(value) -> tuple[str, str]:
     return value[0], value[1]
 
 
+def _number(value, what: str) -> float:
+    """A SKILL number, or a refusal that names the argument.
+
+    Without this the coercion happens inside the arithmetic and a caller gets
+    Python's own wording back -- "unsupported operand type(s) for -: 'str' and
+    'float'" names neither the argument nor what it should have been.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise SkillError(f"{what} must be a number, got {skill_repr(value)}")
+    return float(value)
+
+
+def _point(value, what: str = "point") -> list[float]:
+    if not isinstance(value, list) or len(value) != 2:
+        raise SkillError(
+            f"expected a {what} like list(x y), got {skill_repr(value)}")
+    return [_number(value[0], f"{what} x"), _number(value[1], f"{what} y")]
+
+
 def _points(value) -> list[list[float]]:
-    if not isinstance(value, list):
-        raise SkillError("expected a point list")
-    return [[p[0], p[1]] for p in value]
+    if not isinstance(value, list) or not value:
+        raise SkillError(f"expected a list of points, got {skill_repr(value)}")
+    return [_point(p) for p in value]
 
 
 class DdCellHandle:
@@ -123,10 +142,10 @@ def install(session) -> None:
     def db_create_label(it, args, kwargs):
         cv = _as_cellview(args[0])
         layer, purpose = _lpp(args[1])
-        xy = list(args[2])
+        xy = _point(args[2])
         text = args[3]
         orient = args[5] if len(args) > 5 else "R0"
-        height = float(args[7]) if len(args) > 7 else 0.1
+        height = _number(args[7], "height") if len(args) > 7 else 0.1
         half = height / 2.0
         shape = Shape("label", layer, purpose,
                       bbox=[[xy[0] - half, xy[1] - half],
@@ -148,7 +167,7 @@ def install(session) -> None:
                 "dbCreateVia: expected a via definition from "
                 f"techFindViaDefByName, got {skill_repr(via_def)}; "
                 f"this technology has {known}")
-        xy = list(args[2])
+        xy = _point(args[2])
         orient = args[3] if len(args) > 3 else "R0"
         shape = Shape("via", "via", "drawing",
                       bbox=[[xy[0], xy[1]], [xy[0], xy[1]]],
@@ -194,7 +213,7 @@ def install(session) -> None:
     def db_create_param_inst_by_master_name(it, args, kwargs):
         cv = _as_cellview(args[0])
         return _add_instance(cv, args[1], args[2], args[3], args[4],
-                             list(args[5]), args[6])
+                             _point(args[5]), args[6])
 
     def db_create_inst(it, args, kwargs):
         cv = _as_cellview(args[0])
@@ -204,7 +223,7 @@ def install(session) -> None:
         return _add_instance(cv, master.get_prop("libName"),
                              master.get_prop("cellName"),
                              master.get_prop("viewName"),
-                             args[2], list(args[3]), args[4])
+                             args[2], _point(args[3]), args[4])
 
     def db_create_simple_mosaic(it, args, kwargs):
         cv = _as_cellview(args[0])

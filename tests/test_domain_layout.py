@@ -523,3 +523,54 @@ def test_a_refused_via_says_which_definitions_exist(session):
     message = str(excinfo.value)
     assert "M1_M2" in message and "M2_M3" in message
     assert "DIFF_M1" in message and "PO_M1" in message
+
+
+# ---- Malformed arguments name the argument, not Python's stack -----------
+
+def test_a_label_at_a_non_point_says_what_a_point_is(session):
+    """A Python TypeError leaking through tells an agent nothing.
+
+    An agent that passed a string where the point goes got
+    "unsupported operand type(s) for -: 'str' and 'float'", which names
+    neither the argument nor what it should have been.
+    """
+    session.evaluate('cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "a")')
+    with pytest.raises(SkillError) as excinfo:
+        session.evaluate('dbCreateLabel(cv list("text" "drawing") "2.0" "A" '
+                         '"centerCenter" "R0" "stick" 0.5)')
+    message = str(excinfo.value)
+    # A deliberate SkillError passes through unmodified here, by convention, so
+    # the message has to carry its own meaning rather than lean on a prefix.
+    assert "point" in message and "list(x y)" in message
+    assert "operand" not in message, "Python's own wording should not reach the wire"
+
+
+def test_a_label_height_that_is_not_a_number_says_so(session):
+    session.evaluate('cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "a")')
+    with pytest.raises(SkillError, match="height"):
+        session.evaluate('dbCreateLabel(cv list("text" "drawing") list(1 2) "A" '
+                         '"centerCenter" "R0" "stick" "tall")')
+
+
+def test_a_point_with_one_coordinate_is_refused(session):
+    session.evaluate('cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "a")')
+    with pytest.raises(SkillError, match="point"):
+        session.evaluate('dbCreateLabel(cv list("text" "drawing") list(1) "A" '
+                         '"centerCenter" "R0" "stick" 0.5)')
+
+
+def test_a_via_at_a_non_point_says_what_a_point_is(session):
+    session.evaluate('cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "a")')
+    with pytest.raises(SkillError, match="point"):
+        session.evaluate('dbCreateVia(cv techFindViaDefByName(techGetTechFile(cv) "M1_M2") '
+                         '"nope" "R0")')
+
+
+def test_a_good_label_still_works(session):
+    session.evaluate(
+        'cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "a") '
+        'dbCreateLabel(cv list("text" "drawing") list(1 2) "A" '
+        '"centerCenter" "R0" "stick" 0.5)')
+    shape = session.design.find_cellview("L", "C", "layout").shapes[0]
+    assert shape.get_prop("theLabel") == "A"
+    assert shape.bbox == [[0.75, 1.75], [1.25, 2.25]]
