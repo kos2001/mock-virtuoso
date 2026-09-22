@@ -31,8 +31,11 @@ distinct master, open it and report its shape count.
 **Every cell claimed is a cell that exists.** Check `STDLIB/INV`, `NAND2`,
 `BIAS`, `PG` and `CORE`. Report which are present and which are empty.
 
-**Pins are labelled.** Count `text` shapes per cell and report the labels you
-find, so a missing pin name shows up.
+**Pins are real pins.** Count `text` shapes per cell and report the labels you
+find — and then check `cv~>nets` and `cv~>terminals`, because a label is not a
+pin. A cell whose pin names exist only as text has no connectivity: it places,
+it draws, and nothing can be traced through it. Report the two counts
+separately; where they disagree, say so.
 
 **The reports were true.** Where a colleague's quoted shape count or bounding
 box disagrees with what you read, say both numbers and which cell.

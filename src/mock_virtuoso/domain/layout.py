@@ -8,7 +8,8 @@ from mock_virtuoso.db.geometry import (
     transform_bbox,
     transform_point,
 )
-from mock_virtuoso.db.objects import CellView, Instance, Shape, TechFile, ViaDef
+from mock_virtuoso.db.objects import (CellView, Instance, Net, Pin, Shape,
+                                      TechFile, Term, ViaDef)
 from mock_virtuoso.domain import drc
 from mock_virtuoso.skill.errors import SkillError
 from mock_virtuoso.skill.values import NIL, TRUE, skill_repr
@@ -326,6 +327,67 @@ def install(session) -> None:
             return TRUE
         return NIL
 
+    # -- connectivity -----------------------------------------------------
+    #
+    # Without these a cell drew shapes and nothing said which of them were the
+    # same signal. `verify` counted `text` labels as a stand-in for pins, and
+    # `leMarkNet` answered `t` at every point because there was no net to
+    # fail to find.
+
+    DIRECTIONS = ("input", "output", "inputOutput", "switch", "jumper",
+                  "unused")
+
+    def db_create_net(it, args, kwargs):
+        cv = _as_cellview(args[0] if args else NIL)
+        name = args[1] if len(args) > 1 else NIL
+        if not isinstance(name, str) or not name:
+            raise SkillError(
+                f"dbCreateNet: expected a net name, got {skill_repr(name)}")
+        existing = cv.find_net(name)
+        if existing is not None:
+            # Cadence returns the existing net rather than a second one of the
+            # same name, and a cell with two `VDD`s is not a thing to model.
+            return existing
+        net = Net(name, cv)
+        cv.get_prop("nets").append(net)
+        design.register(net)
+        return net
+
+    def _as_net(value, what: str):
+        if not isinstance(value, Net):
+            raise SkillError(
+                f"{what}: expected a net from dbCreateNet, got {skill_repr(value)}")
+        return value
+
+    def db_create_term(it, args, kwargs):
+        net = _as_net(args[0] if args else NIL, "dbCreateTerm")
+        name = args[1] if len(args) > 1 else net.name
+        direction = args[2] if len(args) > 2 else "inputOutput"
+        if direction not in DIRECTIONS:
+            raise SkillError(
+                f"dbCreateTerm: unknown direction {skill_repr(direction)}; "
+                f"it is one of {', '.join(DIRECTIONS)}")
+        term = Term(name, direction, net)
+        net.get_prop("terminals").append(term)
+        net.get_prop("cellView").get_prop("terminals").append(term)
+        design.register(term)
+        return term
+
+    def db_create_pin(it, args, kwargs):
+        net = _as_net(args[0] if args else NIL, "dbCreatePin")
+        fig = args[1] if len(args) > 1 else NIL
+        if not isinstance(fig, Shape):
+            raise SkillError(
+                "dbCreatePin: expected a shape to offer as the pin, got "
+                f"{skill_repr(fig)}")
+        name = args[2] if len(args) > 2 else net.name
+        terms = net.get_prop("terminals")
+        pin = Pin(name, fig, net, terms[0] if terms else None)
+        net.get_prop("pins").append(pin)
+        fig._slot_net = net
+        design.register(pin)
+        return pin
+
     def tech_get_tech_file(it, args, kwargs):
         return tech_file
 
@@ -373,6 +435,9 @@ def install(session) -> None:
         ("ddGetObj", dd_get_obj),
         ("ddGetObjReadPath", dd_get_obj_read_path),
         ("ddDeleteObj", dd_delete_obj),
+        ("dbCreateNet", db_create_net),
+        ("dbCreateTerm", db_create_term),
+        ("dbCreatePin", db_create_pin),
         ("mockDrcCheck", mock_drc_check),
         ("techGetTechFile", tech_get_tech_file),
         ("techFindViaDefByName", tech_find_via_def_by_name),

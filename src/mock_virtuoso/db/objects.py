@@ -142,9 +142,71 @@ class Instance(DbObject):
 _BBOX_IN_PROGRESS: set[int] = set()
 
 
+class Net(DbObject):
+    """A named electrical net in one cellview.
+
+    Connectivity was the one thing a layout here could not carry. A cell drew
+    shapes and labels and nothing said which of them were the same signal, so
+    `leMarkNet` had nothing to find and answered `t` to every point — the
+    `csh` failure again, a call that always succeeds teaching an agent it did
+    something.
+    """
+
+    _SLOTS = ("objType", "name", "pins", "terminals", "cellView")
+
+    def __init__(self, name: str, cellview) -> None:
+        super().__init__()
+        self._slot_objType = "net"
+        self._slot_name = name
+        self._slot_pins: list = []
+        self._slot_terminals: list = []
+        self._slot_cellView = cellview
+
+    @property
+    def name(self) -> str:
+        return self._slot_name
+
+
+class Term(DbObject):
+    """A terminal: the name a net presents to whoever instantiates the cell."""
+
+    _SLOTS = ("objType", "name", "direction", "net", "pins")
+
+    def __init__(self, name: str, direction: str, net: Net) -> None:
+        super().__init__()
+        self._slot_objType = "term"
+        self._slot_name = name
+        self._slot_direction = direction
+        self._slot_net = net
+        self._slot_pins = net.get_prop("pins")
+
+    @property
+    def name(self) -> str:
+        return self._slot_name
+
+
+class Pin(DbObject):
+    """One shape offered as a connection point for a net."""
+
+    _SLOTS = ("objType", "name", "fig", "net", "term", "accessDir")
+
+    def __init__(self, name: str, fig, net: Net, term=None) -> None:
+        super().__init__()
+        self._slot_objType = "pin"
+        self._slot_name = name
+        self._slot_fig = fig
+        self._slot_net = net
+        self._slot_term = term if term is not None else NIL
+        self._slot_accessDir = NIL
+
+    @property
+    def name(self) -> str:
+        return self._slot_name
+
+
 class CellView(DbObject):
     _SLOTS = ("objType", "libName", "cellName", "viewName", "shapes",
-              "instances", "bBox", "cellView")
+              "instances", "nets", "terminals", "bBox", "cellView")
 
     def __init__(self, lib_name: str, cell_name: str, view_name: str,
                  view_type: str, mode: str) -> None:
@@ -157,12 +219,16 @@ class CellView(DbObject):
         self.mode = mode
         self._slot_shapes: list[Shape] = []
         self._slot_instances: list[Instance] = []
+        self._slot_nets: list[Net] = []
+        self._slot_terminals: list[Term] = []
         self.saved = False
 
     def clear_contents(self) -> None:
         """Empty the cell in place, keeping every handle onto it valid."""
         self._slot_shapes.clear()
         self._slot_instances.clear()
+        self._slot_nets.clear()
+        self._slot_terminals.clear()
         self.saved = False
 
     def adopt_contents(self, other: "CellView") -> None:
@@ -173,6 +239,8 @@ class CellView(DbObject):
         """
         self._slot_shapes = other._slot_shapes
         self._slot_instances = other._slot_instances
+        self._slot_nets = other._slot_nets
+        self._slot_terminals = other._slot_terminals
         self.saved = other.saved
 
     @property
@@ -182,6 +250,16 @@ class CellView(DbObject):
     @property
     def instances(self) -> list:
         return self._slot_instances
+
+    @property
+    def nets(self) -> list:
+        return self._slot_nets
+
+    def find_net(self, name) -> "Net | None":
+        for net in self._slot_nets:
+            if net.name == name:
+                return net
+        return None
 
     @property
     def bbox(self):

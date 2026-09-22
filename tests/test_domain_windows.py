@@ -221,12 +221,15 @@ def test_pte_set_all_visible_makes_every_entry_visible(session):
     assert all(v is True for v in session.palette.values())
 
 
-def test_le_mark_net_stubs_return_t(session):
-    # leMarkNet/leHiUnmarkNet은 관찰 가능한 부수효과가 없는
-    # accept-and-return-TRUE 스텁이다. t를 반환하는지만 확인한다 — 이 얇음은
-    # 의도한 것이다. geOpen은 별도로 다룬다 (아래) — 그것은 실제 윈도우를
-    # 여는 부수효과를 갖는다.
-    assert session.evaluate('leMarkNet(nil "net1")') is TRUE
+def test_le_mark_net_no_longer_says_yes_to_everything(session):
+    # 이전에는 accept-and-return-TRUE 스텁이었고, 그 얇음이 의도라고
+    # 적혀 있었다. 틀린 의도였다: 브리지의 net-highlight 연산이
+    # shape~>net~>name 을 읽으므로, 넷 개념이 없으면 그 연산은 구조적으로
+    # 항상 "net not found" 였다 — mock 이 막으라고 존재하는 바로 그 상황.
+    # 이제 넷을 찾거나 이유를 대고 거절한다. 연결성 동작은
+    # tests/test_domain_connectivity.py 가 다룬다.
+    with pytest.raises(SkillError):
+        session.evaluate('leMarkNet(nil "net1")')
     assert session.evaluate('leHiUnmarkNet(nil "net1")') is TRUE
 
 
