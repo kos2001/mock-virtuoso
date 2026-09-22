@@ -18,7 +18,12 @@ header img{width:22px;height:22px}
 header h1{font-size:13px;margin:0;font-weight:600;letter-spacing:.2px}
 header .sub{color:var(--dim);font-size:11px}
 header .right{margin-left:auto;color:var(--dim);font-size:11px}
-main{flex:1;display:grid;grid-template-columns:232px 1fr 430px;min-height:0}
+main{flex:1;display:grid;grid-template-columns:var(--left,232px) 5px 1fr 5px var(--right,430px);
+     min-height:0}
+.grip{background:var(--edge);cursor:col-resize;position:relative}
+.grip:hover,.grip.dragging{background:var(--hi)}
+/* a 5px target is hard to hit; widen it without moving the layout */
+.grip::after{content:"";position:absolute;inset:0 -4px;cursor:col-resize}
 .col{display:flex;flex-direction:column;min-height:0;min-width:0}
 .col.left{border-right:1px solid var(--edge);background:var(--panel);overflow-y:auto}
 .col.right{border-left:1px solid var(--edge);background:var(--panel)}
@@ -128,6 +133,9 @@ canvas:active{cursor:grabbing}
     <div id="lsw"></div>
   </div>
 
+  <div class="grip" id="gripL" role="separator" aria-orientation="vertical"
+       aria-label="resize the agents panel"></div>
+
   <div class="col">
     <div class="tabs" id="tabs"></div>
     <div class="canvas"><canvas id="cv"></canvas></div>
@@ -146,6 +154,9 @@ canvas:active{cursor:grabbing}
       <div style="margin-left:auto">drag to pan · wheel to zoom</div>
     </div>
   </div>
+
+  <div class="grip" id="gripR" role="separator" aria-orientation="vertical"
+       aria-label="resize the transcript panel"></div>
 
   <div class="col right">
     <h2>SKILL transcript</h2>
@@ -386,6 +397,58 @@ $("ask").onsubmit = async e => {
     $("go").disabled = false;
   }
 };
+
+// Panel widths. The canvas sizes itself from its parent, so every change has
+// to be followed by a resize — otherwise the drawing keeps the old width and
+// the coordinates stop matching the picture.
+const PANEL_KEY = "mv.panels";
+function setPanels(left, right){
+  const room = innerWidth - 260;                 // leave the canvas something
+  left  = Math.max(170, Math.min(left,  room * 0.5));
+  right = Math.max(220, Math.min(right, room * 0.6));
+  document.documentElement.style.setProperty("--left", left + "px");
+  document.documentElement.style.setProperty("--right", right + "px");
+  resize();
+  try { localStorage.setItem(PANEL_KEY, JSON.stringify({left, right})); }
+  catch (e) { /* a blocked store costs the preference, not the drag */ }
+  return {left, right};
+}
+function panelWidths(){
+  const cs = getComputedStyle(document.documentElement);
+  return {left: parseFloat(cs.getPropertyValue("--left")) || 232,
+          right: parseFloat(cs.getPropertyValue("--right")) || 430};
+}
+try {
+  const saved = JSON.parse(localStorage.getItem(PANEL_KEY) || "null");
+  if (saved) setPanels(saved.left, saved.right);
+} catch (e) { /* nothing saved, or unreadable: the defaults stand */ }
+
+for (const [id, side] of [["gripL", "left"], ["gripR", "right"]]) {
+  $(id).addEventListener("mousedown", down => {
+    down.preventDefault();                       // do not start a text selection
+    const start = panelWidths(), x0 = down.clientX;
+    $(id).classList.add("dragging");
+    const move = e => {
+      const d = e.clientX - x0;
+      setPanels(side === "left" ? start.left + d : start.left,
+                side === "right" ? start.right - d : start.right);
+      draw();
+    };
+    const up = () => {
+      $(id).classList.remove("dragging");
+      removeEventListener("mousemove", move);
+      removeEventListener("mouseup", up);
+    };
+    addEventListener("mousemove", move);
+    addEventListener("mouseup", up);
+  });
+  // double-click restores the default for that side
+  $(id).addEventListener("dblclick", () => {
+    const w = panelWidths();
+    setPanels(side === "left" ? 232 : w.left, side === "right" ? 430 : w.right);
+    draw();
+  });
+}
 
 $("aboutSlot").appendChild(mountAbout("floor"));
 resize(); renderTabs(); poll();
