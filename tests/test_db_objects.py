@@ -291,3 +291,50 @@ def test_closed_cell_is_still_findable_as_an_instance_master():
     master = design.find_cellview("LIB", "MASTER", "layout")
     assert master is not None
     assert len(master.shapes) == 1
+
+
+def test_deleting_a_cell_discards_its_contents():
+    """ddDeleteObj removes the cell; recreating it must not resurrect geometry.
+
+    Storage outliving `_known_cells` meant a deleted cell came back fully drawn
+    the next time anything opened it.
+    """
+    design = Design()
+    cv = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    cv.shapes.append(Shape("rect", "met1", "drawing", bbox=[[0.0, 0.0], [4.0, 4.0]]))
+    design.close_cellview(cv)
+
+    design.forget_cell("LIB", "CELL")
+    assert not design.cell_exists("LIB", "CELL")
+    assert design.find_cellview("LIB", "CELL", "layout") is None
+
+    recreated = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    assert recreated.shapes == []
+
+
+def test_deleting_a_cell_closes_views_that_are_still_open():
+    """Deleting a cell out from under an open view leaves no live handle to it."""
+    design = Design()
+    cv = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    cv.shapes.append(Shape("rect", "met1", "drawing", bbox=[[0.0, 0.0], [1.0, 1.0]]))
+    handle = cv.handle
+
+    design.forget_cell("LIB", "CELL")
+
+    assert design.open_cellviews == []
+    with pytest.raises(SkillError):
+        design.resolve(handle)
+
+
+def test_deleting_one_cell_leaves_its_neighbours_alone():
+    design = Design()
+    keep = design.open_cellview("LIB", "KEEP", "layout", "maskLayout", "w")
+    keep.shapes.append(Shape("rect", "met1", "drawing", bbox=[[0.0, 0.0], [1.0, 1.0]]))
+    drop = design.open_cellview("LIB", "DROP", "layout", "maskLayout", "w")
+    drop.shapes.append(Shape("rect", "poly", "drawing", bbox=[[0.0, 0.0], [1.0, 1.0]]))
+
+    design.forget_cell("LIB", "DROP")
+
+    assert design.cell_exists("LIB", "KEEP")
+    assert len(design.find_cellview("LIB", "KEEP", "layout").shapes) == 1
+    assert design.find_cellview("LIB", "DROP", "layout") is None

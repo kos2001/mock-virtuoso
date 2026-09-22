@@ -56,7 +56,19 @@ class Design:
         return (lib, cell) in self._known_cells
 
     def forget_cell(self, lib: str, cell: str) -> None:
+        """Delete the cell: every view of it, open or stored, goes with it.
+
+        Storage outlives an individual cellview object, so dropping only the
+        name would leave the geometry behind and hand it straight back to
+        whoever recreated the cell.
+        """
         self._known_cells.discard((lib, cell))
+        for key in [k for k in self._stored if k[0] == lib and k[1] == cell]:
+            stored = self._stored.pop(key)
+            open_cv = self._cellviews.pop(key, None)
+            for cv in {id(stored): stored, id(open_cv): open_cv}.values():
+                if cv is not None:
+                    self.unregister(cv)
 
     def open_cellview(self, lib: str, cell: str, view: str,
                       view_type: str, mode: str) -> CellView:
