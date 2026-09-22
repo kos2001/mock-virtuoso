@@ -178,6 +178,18 @@ ROW        : I0 NAND2 R0 ((-0.2 0.0) (4.2 4.2))
 `demo/agent_sandbox.py` removes the tunnel-state file on exit, so the bridge stops
 believing a local Virtuoso is present once you stop the sandbox.
 
+## The introduction panel
+
+Both front ends carry an **ⓘ About / 소개** button that opens the same panel:
+what the mock is, how a request reaches it, what this particular screen does,
+what it deliberately does not do, and why it refuses rather than returning nil.
+
+`webapp/about.js` holds one copy, served by both servers, with a paragraph and
+a flow line per front end. Korean and English sit side by side in one table
+rather than in two files, so editing one language is visibly editing the other
+— and a test fails if an entry ever carries only one. The choice is remembered
+per browser and defaults to the browser's own language.
+
 ## The technology
 
 Small and fixed, but real — the mock refuses anything outside it rather than

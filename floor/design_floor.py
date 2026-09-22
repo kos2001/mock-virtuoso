@@ -221,8 +221,8 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(url.query)
         if url.path in ("/", "/index.html"):
             return self._raw((HERE / "floor.html").read_bytes(), "text/html; charset=utf-8")
-        if url.path == "/render.js":
-            return self._raw((WEBAPP / "render.js").read_bytes(),
+        if url.path in ("/render.js", "/about.js"):
+            return self._raw((WEBAPP / url.path.lstrip("/")).read_bytes(),
                              "application/javascript; charset=utf-8")
         if url.path in ("/favicon.ico", "/favicon.svg"):
             return self._raw((HERE.parent / "assets" / "icon-small.svg").read_bytes(),

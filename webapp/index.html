@@ -89,6 +89,7 @@
     <button class="menu">View</button><button class="menu">Create</button>
     <button class="menu">Verify</button><button class="menu">Options</button>
     <div class="spacer"></div>
+    <div id="aboutSlot"></div>
     <div class="badge">daemon <b id="daemon">connecting…</b></div>
   </div>
 
@@ -142,6 +143,7 @@
 <script>
 </script>
 <script src="/render.js"></script>
+<script src="/about.js"></script>
 <script>
 
 function renderLog(log){
@@ -154,6 +156,8 @@ const esc=s=>(s||"").replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]
 function onLayerToggle(name, on){
   api("/api/skill",{skill:`pteSetVisible("${name} drawing" ${on?"t":"nil"} "Layers")`});
 }
+
+$("aboutSlot").appendChild(mountAbout("workbench"));
 
 async function api(path,body){
   const r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},

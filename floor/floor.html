@@ -79,6 +79,7 @@ canvas:active{cursor:grabbing}
     <div class="sub">agents → virtuoso-bridge → one mock Virtuoso design database</div>
   </div>
   <div class="right">every line below crossed the wire as SKILL</div>
+  <div id="aboutSlot" style="margin-left:12px"></div>
 </header>
 
 <main>
@@ -113,6 +114,7 @@ canvas:active{cursor:grabbing}
 </main>
 
 <script src="/render.js"></script>
+<script src="/about.js"></script>
 <script>
 const LANE_COLOR = {cells:"#4493f8", analog:"#bc8cff", top:"#e3b341"};
 const color = l => LANE_COLOR[l] || "#8b949e";
@@ -202,5 +204,6 @@ async function poll(){
   setTimeout(poll, 700);
 }
 
+$("aboutSlot").appendChild(mountAbout("floor"));
 resize(); renderTabs(); poll();
 </script>
