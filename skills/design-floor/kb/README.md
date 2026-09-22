@@ -36,8 +36,12 @@ Front matter, then prose. `signature` is a regex matched against the daemon's
 reply; `rule` is the sentence that must appear in the file named by `rule_in` —
 a path relative to the skill root, one level above this directory —
 which `tests/test_design_floor_kb.py` checks. A case whose lesson landed in code
-rather than in a document names where: `rule_in: mock` for the mock's own
-behaviour, `rule_in: front-end` for the screen.
+rather than in a document sets `rule_in: code`; the body says where.
+
+Quote a `rule` that sits on one line of its source. Comparison collapses
+whitespace, so a sentence wrapped across lines still matches — but one split
+across two Python string literals does not, because the quotes and comma
+between them are not whitespace.
 
 ```yaml
 ---
@@ -46,7 +50,7 @@ outcome: failure          # or success
 signature: "has no slot"  # optional; omit for cases with no error reply
 lanes: cells, analog      # where it was seen
 rule: "the sentence that prevents it"
-rule_in: SKILL.md         # relative to the skill root; or: mock, or: none
+rule_in: SKILL.md         # relative to the skill root; or: code, or: none
 ---
 ```
 

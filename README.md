@@ -89,6 +89,18 @@ parse the results — the only test layer in this project that proves the
 mock is useful for its actual purpose, rather than merely internally
 consistent.
 
+## Before committing
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`.githooks/pre-commit` runs the suite and refuses a commit while it is red.
+Three commits in one session went in with a failing test — each time the run
+happened, printed `1 failed`, and was read as though it said passed. A machine
+reads it correctly. `SKIP_TESTS=1` overrides it for the case where the red test
+is the point.
+
 ## Design
 
 See the design document at

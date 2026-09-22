@@ -1,0 +1,26 @@
+#!/bin/sh
+# Refuse a commit while the suite is red.
+#
+# Three commits in one session went in with a failing test — each time because
+# the run happened, printed "1 failed", and got read as though it said passed.
+# Enable with:  git config core.hooksPath .githooks
+#
+# The hook runs what CI's unit job runs. Contract tests need the bridge
+# installed and are left to CI. Set SKIP_TESTS=1 for a deliberate exception,
+# e.g. committing a known-red test you are about to fix.
+
+[ "$SKIP_TESTS" = "1" ] && exit 0
+
+PY=.venv/bin/python
+[ -x "$PY" ] || PY=python3
+
+printf 'pre-commit: running the suite... '
+if out=$("$PY" -m pytest -q 2>&1); then
+    printf '%s\n' "$(printf '%s' "$out" | tail -1)"
+    exit 0
+fi
+
+printf 'FAILED\n\n'
+printf '%s\n' "$out" | grep -E '^(FAILED|ERROR)' | head -20
+printf '\ncommit refused. Fix the tests, or SKIP_TESTS=1 git commit ... to override.\n'
+exit 1

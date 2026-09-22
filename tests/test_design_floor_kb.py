@@ -63,16 +63,15 @@ def test_the_rule_a_case_claims_is_where_it_says_it_is(case):
     # Compare on collapsed whitespace: the words are the promise, not the wrap.
     flat = lambda s: " ".join(s.split())
     rule, where = flat(case["rule"]), case["rule_in"]
-    if where in ("mock", "front-end"):
-        # A lesson can land in code rather than in a document, and the code is
-        # not always the mock: the screen is where several of them belong.
-        roots = {"mock": [SRC],
-                 "front-end": [ROOT / "floor", ROOT / "toolkit" / "static"]}[where]
+    if where == "code":
+        # A lesson often lands in code rather than in a document, and which
+        # directory hardly matters to a reader — naming them separately just
+        # made the field easy to file wrongly, three times.
+        roots = [ROOT / d for d in ("src", "toolkit", "floor", "hermes", "demo")]
         files = [f for root in roots for pattern in ("*.py", "*.js", "*.html")
                  for f in root.rglob(pattern)]
         haystack = flat("\n".join(f.read_text(encoding="utf-8") for f in files))
-        location = {"mock": "the mock's own source",
-                    "front-end": "the front end"}[where]
+        location = "the code"
     else:
         # rule_in is relative to the skill root, not to the case file
         target = (KB.parent / where).resolve()

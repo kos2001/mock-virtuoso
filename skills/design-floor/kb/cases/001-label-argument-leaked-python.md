@@ -4,7 +4,7 @@ outcome: failure
 signature: "unsupported operand type|object is not iterable"
 lanes: analog, power
 rule: "must be a number, got"
-rule_in: mock
+rule_in: code
 ---
 
 # A Python exception reached the wire

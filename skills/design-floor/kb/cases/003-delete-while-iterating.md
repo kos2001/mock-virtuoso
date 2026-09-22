@@ -3,7 +3,7 @@ id: 003-delete-while-iterating
 outcome: failure
 lanes: power, top, cells
 rule: "builds a list and hands it over"
-rule_in: mock
+rule_in: code
 ---
 
 # `foreach` over a list that was being deleted from

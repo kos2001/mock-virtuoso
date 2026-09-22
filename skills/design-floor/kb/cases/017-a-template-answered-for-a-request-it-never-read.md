@@ -2,8 +2,8 @@
 id: 017-a-template-answered-for-a-request-it-never-read
 outcome: failure
 lanes: request
-rule: "read none of them in your request"
-rule_in: mock
+rule: "This planner knows INV, NAND2, NOR2, BUF and DFF"
+rule_in: code
 ---
 
 # Two different requests, one answer, reported as success
