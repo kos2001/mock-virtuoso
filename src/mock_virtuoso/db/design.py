@@ -79,9 +79,14 @@ class Design:
             # Update mode and view_type on cache hit (last-open-wins)
             existing.mode = mode
             existing.view_type = view_type
+            if mode == "w":
+                # "w" is overwrite: Virtuoso hands back an empty cellview and
+                # whatever was there is gone. Keeping it would turn every
+                # "build this cell" into an append onto the previous build.
+                existing.clear_contents()
             return existing
         cv = CellView(lib, cell, view, view_type, mode)
-        stored = self._stored.get(key)
+        stored = self._stored.get(key) if mode != "w" else None
         if stored is not None:
             # Reopening the same cell: a fresh cellview object with a fresh
             # handle, holding the geometry that was already there. The lists

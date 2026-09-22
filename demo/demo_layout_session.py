@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 from mock_virtuoso.auth import Authenticator
+from mock_virtuoso.bridge_compat import build_layout
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
 
@@ -72,8 +73,8 @@ def main() -> int:
         print(f"   get_current_design()   → {client.get_current_design()}")
         print(f"   list_windows()         → {client.list_windows()}")
 
-        head("Build the layout — batched through client.layout.edit()")
-        with client.layout.edit(LIB, CELL) as ed:
+        head("Build the layout — one batched round trip through the bridge")
+        with build_layout(client, LIB, CELL) as ed:
             ed.add(layout_set_active_lpp("met1"))
             # device-ish rectangles
             ed.add(layout_create_rect("nwell", "drawing", -1.0, -1.0, 5.0, 7.0))
@@ -92,7 +93,7 @@ def main() -> int:
         print(f"   {len(ed.commands)} SKILL ops sent as ONE round trip, then saved")
 
         head("Hierarchy — place the cell inside a top level")
-        with client.layout.edit(LIB, "TOP") as ed2:
+        with build_layout(client, LIB, "TOP") as ed2:
             ed2.add(layout_create_param_inst(LIB, CELL, "layout", "I0", 0, 0, "R0"))
             ed2.add(layout_create_param_inst(LIB, CELL, "layout", "I1", 20, 0, "MY"))
         print("   two instances of DEMO/INV placed in DEMO/TOP")

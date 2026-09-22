@@ -8,9 +8,9 @@ from mock_virtuoso.db.geometry import (
     transform_bbox,
     transform_point,
 )
-from mock_virtuoso.db.objects import CellView, Instance, Shape
+from mock_virtuoso.db.objects import CellView, Instance, Shape, TechFile, ViaDef
 from mock_virtuoso.skill.errors import SkillError
-from mock_virtuoso.skill.values import NIL, TRUE
+from mock_virtuoso.skill.values import NIL, TRUE, skill_repr
 
 
 def _as_cellview(value) -> CellView:
@@ -56,9 +56,25 @@ class DdCellHandle:
         raise SkillError(f"DdCellHandle has no slot '{name}'")
 
 
+# The technology this session offers. Small and fixed, but real: a via can
+# only be drawn from one of these, so a layout can never reference a via
+# master that does not exist.
+VIA_DEFS = (
+    ("DIFF_M1", "diff", "met1"),
+    ("PO_M1", "poly", "met1"),
+    ("M1_M2", "met1", "met2"),
+    ("M2_M3", "met2", "met3"),
+)
+
+
 def install(session) -> None:
     design = session.design
     interp = session.interp
+
+    tech_file = TechFile("mockTech", [ViaDef(*spec) for spec in VIA_DEFS])
+    design.register(tech_file)
+    for via_def in tech_file.get_prop("viaDefs"):
+        design.register(via_def)
 
     def db_open_cellview_by_type(it, args, kwargs):
         lib, cell, view, view_type, mode = (
@@ -122,11 +138,19 @@ def install(session) -> None:
 
     def db_create_via(it, args, kwargs):
         cv = _as_cellview(args[0])
+        via_def = args[1]
+        if not isinstance(via_def, ViaDef):
+            # techFindViaDefByName answers nil for a name the technology does
+            # not have, and this is where that nil has to stop. Drawing it
+            # anyway would put a via on a master that does not exist.
+            raise SkillError(
+                "dbCreateVia: expected a via definition from "
+                f"techFindViaDefByName, got {skill_repr(via_def)}")
         xy = list(args[2])
         orient = args[3] if len(args) > 3 else "R0"
         shape = Shape("via", "via", "drawing",
                       bbox=[[xy[0], xy[1]], [xy[0], xy[1]]],
-                      xy=xy, orient=orient)
+                      xy=xy, orient=orient, via_def=via_def)
         design.register(shape)
         cv.shapes.append(shape)
         return shape
@@ -276,11 +300,16 @@ def install(session) -> None:
         return NIL
 
     def tech_get_tech_file(it, args, kwargs):
-        return TRUE
+        return tech_file
 
     def tech_find_via_def_by_name(it, args, kwargs):
-        # via 정의는 이름만 있는 더미다.
-        return args[1] if len(args) > 1 else NIL
+        target = args[0] if args else NIL
+        if not isinstance(target, TechFile):
+            raise SkillError(
+                "techFindViaDefByName: expected a tech file from "
+                f"techGetTechFile, got {skill_repr(target)}")
+        found = target.find_via_def(args[1] if len(args) > 1 else NIL)
+        return found if found is not None else NIL
 
     for name, fn in (
         ("dbOpenCellViewByType", db_open_cellview_by_type),

@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from mock_virtuoso.auth import Authenticator
+from mock_virtuoso.bridge_compat import build_layout, clear_layout
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
 
@@ -70,30 +71,11 @@ DEMO_CELLS = {
 }
 
 
-def reset_cell(lib: str, cell: str) -> None:
-    """Empty a cellview through the bridge, the way a tool's File>New would.
-
-    `foreach` walks the live list, so a single pass can skip entries while
-    dbDeleteObject removes them; loop until the cellview reports empty.
-    """
-    assert CLIENT is not None
-    skill = (
-        f'let((cv) cv = dbOpenCellViewByType("{lib}" "{cell}" "layout" "maskLayout" "a") '
-        'foreach(s cv~>shapes dbDeleteObject(s)) '
-        'foreach(i cv~>instances dbDeleteObject(i)) '
-        'length(cv~>shapes) + length(cv~>instances))'
-    )
-    for _ in range(12):
-        r = CLIENT.execute_skill(skill)
-        if r.status is not ExecutionStatus.SUCCESS or (r.output or "").strip() == "0":
-            break
-
-
 def build_demo(lib: str, cell: str) -> dict:
     """Build a small standard-cell-ish layout using the bridge's own builders."""
     assert CLIENT is not None
-    reset_cell(lib, cell)
-    with CLIENT.layout.edit(lib, cell) as ed:
+    clear_layout(CLIENT, lib, cell)
+    with build_layout(CLIENT, lib, cell) as ed:
         for layer, x0, y0, x1, y1 in DEMO_CELLS["INV"]:
             ed.add(layout_create_rect(layer, "drawing", x0, y0, x1, y1))
         ed.add(layout_create_path("met1", "drawing", [(2.0, 6.0), (2.0, 8.0)], 0.4))
@@ -103,7 +85,7 @@ def build_demo(lib: str, cell: str) -> dict:
                                    "centerCenter", "R0", "stick", 0.45))
         ed.add(layout_create_label("text", "drawing", 7.0, 3.0, "OUT",
                                    "centerCenter", "R0", "stick", 0.45))
-    log("cmd", f"client.layout.edit({lib}, {cell}) — {len(ed.commands)} ops, one round trip")
+    log("cmd", f"layout build {lib}/{cell} — {len(ed.commands)} ops, one round trip")
     log("ok", f"saved {lib}/{cell}/layout")
     CLIENT.open_window(lib, cell, view="layout")
     return {"ok": True, "ops": len(ed.commands)}
@@ -111,13 +93,13 @@ def build_demo(lib: str, cell: str) -> dict:
 
 def build_top(lib: str, top: str, child: str, count: int) -> dict:
     assert CLIENT is not None
-    reset_cell(lib, top)
-    with CLIENT.layout.edit(lib, top) as ed:
+    clear_layout(CLIENT, lib, top)
+    with build_layout(CLIENT, lib, top) as ed:
         for i in range(count):
             orient = "R0" if i % 2 == 0 else "MY"
             ed.add(layout_create_param_inst(lib, child, "layout", f"I{i}",
                                             i * 9.0, 0.0, orient))
-    log("cmd", f"client.layout.edit({lib}, {top}) — {count} instances placed")
+    log("cmd", f"layout build {lib}/{top} — {count} instances placed")
     log("ok", f"saved {lib}/{top}/layout")
     CLIENT.open_window(lib, top, view="layout")
     return {"ok": True, "instances": count}

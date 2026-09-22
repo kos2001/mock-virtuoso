@@ -173,7 +173,7 @@ def test_db_create_via_adds_a_via_shape(session):
     session.evaluate(
         'cv = dbOpenCellViewByType("LIB" "C" "layout" "maskLayout" "w") '
         'tf = techGetTechFile(cv) '
-        'vd = techFindViaDefByName(tf "M1M2") '
+        'vd = techFindViaDefByName(tf "M1_M2") '
         'dbCreateVia(cv vd list(3 4) "R0" nil)')
     shape = session.design.find_cellview("LIB", "C", "layout").shapes[0]
     assert shape.get_prop("objType") == "via"
@@ -317,13 +317,20 @@ def test_dd_get_obj_read_path_rejects_a_non_cellview_string(session, tmp_path):
         session.evaluate('ddGetObjReadPath("LIB" "CELL")')
 
 
-def test_tech_get_tech_file_returns_true(session):
-    assert session.evaluate('techGetTechFile("LIB")') == TRUE
+def test_tech_get_tech_file_returns_the_technology(session):
+    """It used to return t, which satisfied the bridge and lied to everyone else.
+
+    The bridge only uses the result as a truthy gate before handing it to
+    techFindViaDefByName, so `t` passed its contract -- but an agent that
+    navigated the result got a loud failure about a non-object, and nothing
+    could tell which vias the technology actually had.
+    """
+    assert session.evaluate('techGetTechFile("LIB")~>objType') == "techFile"
 
 
-def test_tech_find_via_def_by_name_returns_the_name(session):
-    assert session.evaluate(
-        'techFindViaDefByName(techGetTechFile("LIB") "M1M2")') == "M1M2"
+def test_tech_find_via_def_by_name_needs_a_real_tech_file(session):
+    with pytest.raises(SkillError, match="expected a tech file"):
+        session.evaluate('techFindViaDefByName(t "M1_M2")')
 
 
 # -- Finding 3: artifact_dir must not default to the process cwd.
@@ -376,7 +383,9 @@ def test_cellview_still_usable_after_cycle_rejected(session, capsys):
         'list(list(0 0) list(1 1)))')
     with pytest.raises(SkillError):
         session.evaluate(
-            'cv = dbOpenCellViewByType("L" "C2" "layout" "maskLayout" "w") '
+            # "a", not "w": the point is that a rejected instance leaves the
+            # existing geometry intact, and "w" would legitimately clear it.
+            'cv = dbOpenCellViewByType("L" "C2" "layout" "maskLayout" "a") '
             'dbCreateParamInstByMasterName(cv "L" "C2" "layout" "SELF" '
             'list(1 1) "R0")')
     cv = session.design.find_cellview("L", "C2", "layout")
@@ -418,3 +427,50 @@ def test_dd_get_obj_read_path_splits_into_lib_cell_view(session):
 def test_dd_get_obj_read_path_rejects_non_cellview(session):
     with pytest.raises(SkillError):
         session.evaluate('ddGetObjReadPath("not a cellview")')
+
+
+# ---- The technology: via definitions are real, or they are refused -------
+
+def test_the_tech_file_is_an_object_with_via_definitions(session):
+    names = session.evaluate(
+        'mapcar(lambda((vd) vd~>name) techGetTechFile(nil)~>viaDefs)')
+    assert set(names) == {"DIFF_M1", "PO_M1", "M1_M2", "M2_M3"}
+
+
+def test_a_known_via_definition_resolves(session):
+    assert session.evaluate(
+        'techFindViaDefByName(techGetTechFile(nil) "M1_M2")~>name') == "M1_M2"
+
+
+def test_an_unknown_via_definition_is_nil(session):
+    """Virtuoso answers nil for a via def the technology does not have."""
+    assert session.evaluate(
+        'techFindViaDefByName(techGetTechFile(nil) "NO_SUCH_VIA")') is NIL
+
+
+def test_a_via_records_the_definition_it_was_made_from(session):
+    session.evaluate(
+        'let((cv) cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "a") '
+        'dbCreateVia(cv techFindViaDefByName(techGetTechFile(cv) "M1_M2") 0:0 "R0"))')
+    assert session.evaluate(
+        'let((cv) cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "r") '
+        'car(cv~>shapes)~>viaDef~>name)') == "M1_M2"
+
+
+def test_a_via_from_a_definition_that_does_not_exist_is_refused(session):
+    """The whole point: an invented via master must not quietly become a shape.
+
+    techFindViaDefByName returns nil for it, and dbCreateVia has to say so
+    rather than draw something that references a master the technology lacks.
+    """
+    with pytest.raises(SkillError, match="via definition"):
+        session.evaluate(
+            'let((cv) cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "a") '
+            'dbCreateVia(cv techFindViaDefByName(techGetTechFile(cv) "INVENTED") 0:0 "R0"))')
+
+
+def test_a_bare_string_is_not_a_via_definition(session):
+    with pytest.raises(SkillError, match="via definition"):
+        session.evaluate(
+            'let((cv) cv = dbOpenCellViewByType("L" "C" "layout" "maskLayout" "a") '
+            'dbCreateVia(cv "M1_M2" 0:0 "R0"))')

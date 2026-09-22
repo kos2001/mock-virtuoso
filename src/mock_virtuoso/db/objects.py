@@ -22,13 +22,53 @@ class DbObject:
         return value
 
 
+class ViaDef(DbObject):
+    """One via definition the technology provides.
+
+    A via can only be drawn from one of these: an invented name resolves to
+    nil, and a shape referencing a master the technology lacks is exactly the
+    kind of quietly-wrong layout this mock refuses to produce.
+    """
+
+    _SLOTS = ("objType", "name", "layer1", "layer2")
+
+    def __init__(self, name: str, layer1: str, layer2: str) -> None:
+        super().__init__()
+        self._slot_objType = "viaDef"
+        self._slot_name = name
+        self._slot_layer1 = layer1
+        self._slot_layer2 = layer2
+
+    @property
+    def name(self) -> str:
+        return self._slot_name
+
+
+class TechFile(DbObject):
+    """The technology bound to this session, as techGetTechFile returns it."""
+
+    _SLOTS = ("objType", "techLibName", "viaDefs")
+
+    def __init__(self, lib_name: str, via_defs: list[ViaDef]) -> None:
+        super().__init__()
+        self._slot_objType = "techFile"
+        self._slot_techLibName = lib_name
+        self._slot_viaDefs = via_defs
+
+    def find_via_def(self, name: object) -> ViaDef | None:
+        for via_def in self._slot_viaDefs:
+            if via_def.name == name:
+                return via_def
+        return None
+
+
 class Shape(DbObject):
     _SLOTS = ("objType", "lpp", "bBox", "points", "xy", "orient",
-              "theLabel", "net", "width")
+              "theLabel", "net", "width", "viaDef")
 
     def __init__(self, obj_type: str, layer: str, purpose: str, *,
                  bbox, points=None, xy=None, orient=None,
-                 text=None, width=None) -> None:
+                 text=None, width=None, via_def=None) -> None:
         super().__init__()
         self._slot_objType = obj_type
         self._slot_lpp = [layer, purpose]
@@ -39,6 +79,7 @@ class Shape(DbObject):
         self._slot_theLabel = text if text is not None else NIL
         self._slot_width = width if width is not None else NIL
         self._slot_net = NIL
+        self._slot_viaDef = via_def if via_def is not None else NIL
 
     @property
     def layer(self) -> str:
@@ -112,6 +153,12 @@ class CellView(DbObject):
         self.mode = mode
         self._slot_shapes: list[Shape] = []
         self._slot_instances: list[Instance] = []
+        self.saved = False
+
+    def clear_contents(self) -> None:
+        """Empty the cell in place, keeping every handle onto it valid."""
+        self._slot_shapes.clear()
+        self._slot_instances.clear()
         self.saved = False
 
     def adopt_contents(self, other: "CellView") -> None:

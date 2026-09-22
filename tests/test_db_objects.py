@@ -338,3 +338,35 @@ def test_deleting_one_cell_leaves_its_neighbours_alone():
     assert design.cell_exists("LIB", "KEEP")
     assert len(design.find_cellview("LIB", "KEEP", "layout").shapes) == 1
     assert design.find_cellview("LIB", "DROP", "layout") is None
+
+
+def test_opening_for_write_starts_the_cellview_empty():
+    """Mode "w" means overwrite: Virtuoso hands back a new, empty cellview.
+
+    Keeping the old contents made every caller that meant "build this cell"
+    silently append to the previous build, which is why the bundled tools grew
+    their own clear-the-cell loops.
+    """
+    design = Design()
+    first = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    first.shapes.append(Shape("rect", "met1", "drawing", bbox=[[0.0, 0.0], [1.0, 1.0]]))
+
+    rewritten = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "w")
+    assert rewritten.shapes == []
+
+
+def test_opening_for_append_keeps_what_is_there():
+    design = Design()
+    first = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "a")
+    first.shapes.append(Shape("rect", "met1", "drawing", bbox=[[0.0, 0.0], [1.0, 1.0]]))
+
+    appended = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "a")
+    assert len(appended.shapes) == 1
+
+
+def test_opening_for_read_keeps_what_is_there():
+    design = Design()
+    first = design.open_cellview("LIB", "CELL", "layout", "maskLayout", "a")
+    first.shapes.append(Shape("rect", "met1", "drawing", bbox=[[0.0, 0.0], [1.0, 1.0]]))
+
+    assert len(design.open_cellview("LIB", "CELL", "layout", "maskLayout", "r").shapes) == 1

@@ -31,6 +31,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from mock_virtuoso.auth import Authenticator
+from mock_virtuoso.bridge_compat import build_layout, clear_layout
 from mock_virtuoso.server import MockVirtuosoServer
 from mock_virtuoso.session import Session
 
@@ -236,7 +237,10 @@ def execute(plan: dict) -> dict:
     done: list[str] = []
 
     if plan["ops"]:
-        with CLIENT.layout.edit(lib, plan["cell"]) as ed:
+        # A plan describes a cell, not an addition to one, so the cell is
+        # emptied first -- otherwise repeating a request doubles the geometry.
+        clear_layout(CLIENT, lib, plan["cell"])
+        with build_layout(CLIENT, lib, plan["cell"]) as ed:
             for op in plan["ops"]:
                 ed.add(_emit(op, lib))
         n_sh = sum(1 for o in plan["ops"] if o["op"] != "place")
@@ -247,7 +251,8 @@ def execute(plan: dict) -> dict:
 
     if plan["then"] and plan["then"]["ops"]:
         top = plan["then"]["cell"]
-        with CLIENT.layout.edit(lib, top) as ed:
+        clear_layout(CLIENT, lib, top)
+        with build_layout(CLIENT, lib, top) as ed:
             for op in plan["then"]["ops"]:
                 ed.add(layout_create_param_inst(lib, op["child"], "layout",
                                                 op["name"], op["x"], op["y"], op["orient"]))

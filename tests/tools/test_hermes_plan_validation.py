@@ -137,3 +137,46 @@ def test_every_validated_op_has_a_builder():
 
     with pytest.raises(PlanError, match="no builder"):
         api._emit({"op": "teleport"}, "LIB")
+
+
+# -- execution -------------------------------------------------------------
+
+@pytest.fixture
+def api_server(tmp_path, monkeypatch):
+    """The API server's executor wired to its own mock."""
+    from virtuoso_bridge import VirtuosoClient
+
+    from mock_virtuoso.auth import Authenticator
+    from mock_virtuoso.server import MockVirtuosoServer
+    from mock_virtuoso.session import Session
+
+    mock = MockVirtuosoServer(Session(artifact_dir=tmp_path))
+    client = VirtuosoClient.local(port=mock.port)
+    mock.auth = Authenticator(getattr(client, "daemon_token", None))
+    mock.start()
+    monkeypatch.setattr(api, "CLIENT", client)
+    try:
+        yield client
+    finally:
+        mock.stop()
+
+
+def test_running_the_same_plan_twice_rebuilds_rather_than_piles_up(api_server):
+    """A plan describes a cell, not an addition to one.
+
+    The executor never cleared the cellview; it relied on the layout editor's
+    default mode, which older bridges set to "w" and newer ones to "a". On a
+    newer bridge that turned a repeated request into a doubled cell.
+    """
+    plan = api.validate({"lib": "DEMO", "cell": "INV",
+                         "ops": [rect(), rect(layer="poly", x0=2, x1=3)]})
+    api.execute(plan)
+    api.execute(plan)
+
+    from virtuoso_bridge.virtuoso.layout import (
+        layout_read_geometry,
+        parse_layout_geometry_output,
+    )
+    rows = parse_layout_geometry_output(
+        api_server.execute_skill(layout_read_geometry("DEMO", "INV")).output or "")
+    assert sum(1 for r in rows if r.get("kind") == "shape") == 2
