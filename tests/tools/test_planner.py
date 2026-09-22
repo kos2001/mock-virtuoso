@@ -722,6 +722,7 @@ def test_a_correction_that_is_not_better_is_not_kept(monkeypatch):
                              "shapes_by_layer": {"met1": 2}, "instances": []}}}
     runs = iter([dirty, worse, dirty])
     monkeypatch.setattr(api, "execute", lambda c, p: next(runs))
+    monkeypatch.setattr(api, "clear_layout", lambda *a: None)
     monkeypatch.setattr(api, "plan_with_hermes", lambda *a, **k: (
         {"lib": "L", "cell": "C", "ops": [
             {"op": "rect", "layer": "met1", "x0": 0, "y0": 0, "x1": 1, "y1": 1}]},
@@ -767,3 +768,98 @@ def test_a_rule_correction_is_stated_not_slipped_in():
                            "hermes (rule-corrected)", 1.0)
     assert "was not buildable as asked" in text
     assert "0.05 µm wide" in text
+
+
+# -- a correction does not leave its predecessor lying around -------------
+
+def test_a_renamed_correction_empties_the_cell_it_replaced(monkeypatch):
+    """The planner renames the cell almost every time it corrects one.
+
+    Without this the illegal geometry stays in the database under its old
+    name, reported to nobody, and a later request that opens that cell finds
+    the version nobody chose.
+    """
+    cleared = []
+    monkeypatch.setattr(api, "clear_layout",
+                        lambda c, lib, cell: cleared.append(f"{lib}/{cell}"))
+
+    def run(_c, plan):
+        bad = ["DRC-WIDTH-001 [error] met1: thin"] if plan["cell"] == "THIN" else []
+        return {"built": [], "warnings": [],
+                "cells": {plan["cell"]: {"drc": bad, "shapes_by_layer": {"met1": 1},
+                                         "instances": []}}}
+
+    monkeypatch.setattr(api, "execute", run)
+    monkeypatch.setattr(api, "plan_with_hermes", lambda *a, **k: (
+        {"lib": "L", "cell": "CLEAN", "ops": [
+            {"op": "rect", "layer": "met1", "x0": 0, "y0": 0, "x1": 1, "y1": 1}]},
+        "hermes"))
+    plan, report, _ = api.build_and_check(
+        None, "t", {"lib": "L", "cell": "THIN", "ops": [
+            {"op": "rect", "layer": "met1", "x0": 0, "y0": 0, "x1": 0.05, "y1": 1}],
+            "then": None}, "hermes")
+    assert plan["cell"] == "CLEAN"
+    assert cleared == ["L/THIN"]
+    assert report["discarded"] == ["L/THIN"]
+
+
+def test_a_correction_that_kept_the_name_clears_nothing(monkeypatch):
+    """`execute` already overwrote it; clearing it again would empty the answer."""
+    cleared = []
+    monkeypatch.setattr(api, "clear_layout",
+                        lambda c, lib, cell: cleared.append(cell))
+    runs = iter([
+        {"built": [], "warnings": [], "cells": {"C": {
+            "drc": ["DRC-WIDTH-001 [error] met1: thin"],
+            "shapes_by_layer": {"met1": 1}, "instances": []}}},
+        {"built": [], "warnings": [], "cells": {"C": {
+            "drc": [], "shapes_by_layer": {"met1": 1}, "instances": []}}}])
+    monkeypatch.setattr(api, "execute", lambda c, p: next(runs))
+    monkeypatch.setattr(api, "plan_with_hermes", lambda *a, **k: (
+        {"lib": "L", "cell": "C", "ops": [
+            {"op": "rect", "layer": "met1", "x0": 0, "y0": 0, "x1": 1, "y1": 1}]},
+        "hermes"))
+    _, report, _ = api.build_and_check(
+        None, "t", {"lib": "L", "cell": "C", "ops": [
+            {"op": "rect", "layer": "met1", "x0": 0, "y0": 0, "x1": 1, "y1": 1}],
+            "then": None}, "hermes")
+    assert cleared == []
+    assert report["discarded"] == []
+
+
+def test_a_rejected_correction_cleans_up_after_itself(monkeypatch):
+    """Its cells are legal but nobody asked for them."""
+    cleared = []
+    monkeypatch.setattr(api, "clear_layout",
+                        lambda c, lib, cell: cleared.append(f"{lib}/{cell}"))
+    runs = iter([
+        {"built": [], "warnings": [], "cells": {"THIN": {
+            "drc": ["DRC-WIDTH-001 [error] met1: a"],
+            "shapes_by_layer": {"met1": 1}, "instances": []}}},
+        {"built": [], "warnings": [], "cells": {"WORSE": {
+            "drc": ["DRC-WIDTH-001 [error] met1: a", "DRC-SPACE-001 [error] met1: b"],
+            "shapes_by_layer": {"met1": 2}, "instances": []}}},
+        {"built": [], "warnings": [], "cells": {"THIN": {
+            "drc": ["DRC-WIDTH-001 [error] met1: a"],
+            "shapes_by_layer": {"met1": 1}, "instances": []}}}])
+    monkeypatch.setattr(api, "execute", lambda c, p: next(runs))
+    monkeypatch.setattr(api, "plan_with_hermes", lambda *a, **k: (
+        {"lib": "L", "cell": "WORSE", "ops": [
+            {"op": "rect", "layer": "met1", "x0": 0, "y0": 0, "x1": 1, "y1": 1}]},
+        "hermes"))
+    plan, _, _ = api.build_and_check(
+        None, "t", {"lib": "L", "cell": "THIN", "ops": [
+            {"op": "rect", "layer": "met1", "x0": 0, "y0": 0, "x1": 0.05, "y1": 1}],
+            "then": None}, "hermes")
+    assert plan["cell"] == "THIN"
+    assert cleared == ["L/WORSE"]
+
+
+def test_the_answer_says_which_cell_was_emptied():
+    report = _report({"C": {"shapes_by_layer": {"met1": 1}, "bBox": "b",
+                            "instances": [], "drc": []}})
+    report["corrected_from"] = ["DRC-WIDTH-001 [error] met1: thin"]
+    report["discarded"] = ["L/THIN"]
+    text = api.answer_text({"lib": "L", "cell": "C"}, report,
+                           "hermes (rule-corrected)", 1.0)
+    assert "L/THIN was emptied" in text
