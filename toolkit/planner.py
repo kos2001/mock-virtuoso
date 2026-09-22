@@ -555,14 +555,38 @@ def build_and_check(client, text: str, plan: dict, planner: str,
             # No better. Rebuild the original so the answer matches the plan
             # it reports, rather than shipping a worse layout silently.
             report = execute(client, plan)
+            report["discarded"] = _discard(client, plan, candidate)
             break
         # Say what was changed and why. The request asked for one thing and
         # got another, and a correction the reader cannot see is a silent
         # substitution — the same failure as an absent measurement reading
         # like a clean one.
         fixed["corrected_from"] = errors
+        fixed["discarded"] = _discard(client, candidate, plan)
         plan, report, planner = candidate, fixed, f"{planner} (rule-corrected)"
     return plan, report, planner
+
+
+def _cells_of(plan: dict) -> set[str]:
+    """The cells a plan actually writes."""
+    cells = {plan["cell"]} if plan["ops"] else set()
+    if plan["then"] and plan["then"]["ops"]:
+        cells.add(plan["then"]["cell"])
+    return cells
+
+
+def _discard(client, kept: dict, dropped: dict) -> list[str]:
+    """Empty the cells the abandoned attempt wrote and the kept one does not.
+
+    A correction almost always renames the cell — the planner asked for a
+    clean layout and named it accordingly — so without this the illegal
+    geometry stays in the database under its old name, reported to nobody. A
+    later request that opens that cell finds the version nobody chose.
+    """
+    orphans = _cells_of(dropped) - _cells_of(kept)
+    for cell in sorted(orphans):
+        clear_layout(client, kept["lib"], cell)
+    return [f"{kept['lib']}/{cell}" for cell in sorted(orphans)]
 
 
 def _drc_errors(report: dict) -> list[str]:
@@ -629,6 +653,11 @@ def answer_text(plan: dict, report: dict, planner: str, elapsed: float) -> str:
         extra = len(report["corrected_from"]) - DRC_QUOTED
         if extra > 0:
             lines.append(f"      … and {extra} more")
+        if report.get("discarded"):
+            lines.append("    The first attempt's "
+                         + ", ".join(report["discarded"])
+                         + " was emptied, so the illegal version is not left "
+                           "in the database under its own name.")
     lines.append("")
     lines.append("Read back from the design database (microns):")
     for cell, info in report["cells"].items():
