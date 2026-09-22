@@ -57,41 +57,90 @@ HERMES = {"url": "http://127.0.0.1:8642/v1/chat/completions", "model": "lsi", "k
 # ------------------------------------------------------------------ planners
 
 def _hermes_key() -> str | None:
-    if HERMES["key"]:
-        return HERMES["key"]
-    env = pathlib.Path.home() / ".hermes" / ".env"
-    if env.is_file():
-        for line in env.read_text(encoding="utf-8").splitlines():
-            if line.startswith("API_SERVER_KEY="):
-                return line.split("=", 1)[1].strip().strip('"').strip("'")
-    return None
+    """The key shared by gateways that do not carry one of their own."""
+    return HERMES["key"] or _env_key(pathlib.Path.home() / ".hermes" / ".env")
 
 
-# Ports an OpenAI-compatible server is commonly brought up on here. The planner
-# used to hardcode one; a server running on any of the others was invisible,
-# and every request fell to the rules planner with nothing saying why.
+# Ports an OpenAI-compatible server is commonly brought up on here. Used only
+# when no hermes profile can be read; profile discovery below is the real path.
 CANDIDATE_ENDPOINTS = ("http://127.0.0.1:8642", "http://127.0.0.1:8643",
                        "http://127.0.0.1:8644", "http://127.0.0.1:8700")
+
+# This project has a hermes profile of its own. Its gateway is the planner we
+# want; anything else is whatever happened to be running.
+HERMES_HOME = pathlib.Path.home() / ".hermes"
+PREFERRED_PROFILE = "virtuoso-bridge"
 
 
 # A dedicated endpoint beats a discovered one: pin the planner to a server and
 # model chosen for this job and it stops depending on what happens to be up.
 # Discovery stays as the fallback, so an unconfigured checkout still works.
 #
-#   VB_PLANNER_URL=http://127.0.0.1:8644   VB_PLANNER_MODEL=mi-report
+#   VB_PLANNER_URL=http://127.0.0.1:8650  VB_PLANNER_MODEL=virtuoso-bridge
+#   VB_PLANNER_KEY=<that gateway's key>   # optional; see below
 #
-ENDPOINT_ENV, MODEL_ENV = "VB_PLANNER_URL", "VB_PLANNER_MODEL"
+ENDPOINT_ENV, MODEL_ENV, KEY_ENV = ("VB_PLANNER_URL", "VB_PLANNER_MODEL",
+                                    "VB_PLANNER_KEY")
 
 
-def configured_planner() -> tuple[str, str] | None:
-    """The endpoint and model this deployment was told to use, if any."""
+def configured_planner() -> tuple[str, str, str | None] | None:
+    """The endpoint, model and key this deployment was told to use, if any."""
     base = os.environ.get(ENDPOINT_ENV, "").strip()
     model = os.environ.get(MODEL_ENV, "").strip()
-    return (base, model) if base and model else None
+    if not (base and model):
+        return None
+    return base, model, os.environ.get(KEY_ENV, "").strip() or _hermes_key()
 
 
-def _list_models(base: str, timeout: int = 5) -> dict:
-    key = _hermes_key()
+def _env_key(env: pathlib.Path) -> str | None:
+    """API_SERVER_KEY out of a .env file, if it holds one."""
+    if not env.is_file():
+        return None
+    for line in env.read_text(encoding="utf-8").splitlines():
+        if line.startswith("API_SERVER_KEY="):
+            return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return None
+
+
+def _api_server(config: pathlib.Path) -> tuple[str, str] | None:
+    """A profile's OpenAI base URL and its own key, from its own directory.
+
+    A profile's `.env` outranks the `token` in its config: where the two
+    disagree, the running gateway honours the `.env` one, and the config
+    token then reads as a live key that is quietly refused.
+    """
+    try:
+        import yaml                                            # optional
+        loaded = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
+    except Exception:                                          # noqa: BLE001
+        return None
+    api = ((loaded.get("platforms") or {}).get("api_server")) or {}
+    port = (api.get("extra") or {}).get("port")
+    key = _env_key(config.parent / ".env") or api.get("token")
+    if not (api.get("enabled") and port and key):
+        return None
+    return f"http://127.0.0.1:{port}", str(key)
+
+
+def hermes_profiles(home: pathlib.Path = HERMES_HOME,
+                    prefer: str = PREFERRED_PROFILE):
+    """Every hermes profile serving an OpenAI API, the preferred one first.
+
+    Each profile carries its own key. That is why probing ports with the one
+    key in `~/.hermes/.env` found nothing: the dedicated gateway answered 401,
+    which to a caller reading only that file is indistinguishable from a port
+    with nobody on it. Take each profile's key from the same file as its port.
+    """
+    configs = sorted((home / "profiles").glob("*/config.yaml"))
+    configs.sort(key=lambda c: (c.parent.name != prefer, c.parent.name))
+    for config in configs:
+        found = _api_server(config)
+        if found:
+            yield config.parent.name, found[0], found[1]
+
+
+def _list_models(base: str, key: str | None = None, timeout: int = 5) -> dict:
+    key = key or _hermes_key()
     req = urllib.request.Request(
         base.rstrip("/") + "/v1/models",
         headers={"Authorization": f"Bearer {key}"} if key else {})
@@ -99,35 +148,44 @@ def _list_models(base: str, timeout: int = 5) -> dict:
         return json.load(response)
 
 
+def _served(base: str, key: str | None) -> list[str]:
+    try:
+        listed = _list_models(base, key).get("data", [])
+    except Exception:                                          # noqa: BLE001
+        return []
+    return [m.get("id") for m in listed if m.get("id")]
+
+
 def discover_planner(bases=CANDIDATE_ENDPOINTS, prefer: str | None = None
-                     ) -> tuple[str, str] | None:
-    """The first endpoint that answers, and a model it actually serves.
+                     ) -> tuple[str, str, str | None] | None:
+    """The first planner that answers, with a model it actually serves.
 
     Asking beats assuming: the configured model may not be the one running,
     and a planner that quietly falls back because it looked in one place is
     indistinguishable from no planner at all.
     """
+    for _name, base, key in hermes_profiles():
+        served = _served(base, key)
+        if served:
+            return base, (prefer if prefer in served else served[0]), key
     for base in bases:
-        try:
-            listed = [m.get("id") for m in _list_models(base).get("data", [])]
-        except Exception:                                      # noqa: BLE001
-            continue
-        listed = [m for m in listed if m]
-        if not listed:
-            continue
-        return base, (prefer if prefer in listed else listed[0])
+        served = _served(base, None)
+        if served:
+            return base, (prefer if prefer in served else served[0]), None
     return None
 
 
 def plan_with_hermes(text: str, timeout: int = 90) -> tuple[dict | None, str]:
-    key = _hermes_key()
-    if not key:
-        return None, "no hermes API key"
-    found = configured_planner() or discover_planner(prefer=HERMES["model"])
+    # Resolve first, then ask for a key. A profile brings its own, so the
+    # absence of a global one is not on its own a reason to give up.
+    found = configured_planner() or discover_planner(prefer=PREFERRED_PROFILE)
     if found is None:
         return None, ("no planner is reachable; set "
                       f"{ENDPOINT_ENV} and {MODEL_ENV} to pin one")
-    base, model = found
+    base, model, key = found
+    key = key or _hermes_key()
+    if not key:
+        return None, f"no API key for {base}; set {KEY_ENV}"
     HERMES["url"], HERMES["model"] = base.rstrip("/") + "/v1/chat/completions", model
     body = json.dumps({
         "model": model, "temperature": 0, "max_tokens": 1200,

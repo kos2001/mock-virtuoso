@@ -317,18 +317,34 @@ plan (that model does not do OpenAI tool-calling, so it plans in JSON and this s
 executes); `--planner rules` is a deterministic parser that needs no LLM at all;
 `auto` prefers hermes and falls back.
 
-**Point it at a server of its own.** The planner used to hardcode one port, so a server
-on any other port was invisible and every request fell silently to the rules planner.
-Two variables now pin the endpoint and the model — configuration beating discovery:
+**It uses a gateway of its own.** This project has a hermes profile named
+`virtuoso-bridge` (gateway on `:8650`), and the planner now prefers it over every other
+profile. Start it once and discovery does the rest:
 
 ```bash
-VB_PLANNER_URL=http://127.0.0.1:8644 VB_PLANNER_MODEL=mi-report \
-  .venv/bin/python floor/design_floor.py
+~/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main \
+  --profile virtuoso-bridge gateway run
+.venv/bin/python floor/design_floor.py
 ```
 
-Unset, the planner probes the ports it knows, asks each one's `/v1/models` which models
-it actually serves, and uses the first that answers — so an unconfigured checkout still
-works, and a request that finds nothing says so instead of pretending.
+Finding it took two fixes. The planner hardcoded one port, so a gateway on any other
+port was invisible. Worse, **each profile carries its own key**: probing ports with the
+one key in `~/.hermes/.env` got a 401 from the dedicated gateway, which to the caller
+looks exactly like a port with nobody on it — so the planner walked past the server
+built for this job and used whichever profile happened to answer. Keys now come from the
+same profile directory as the port, and a profile's `.env` outranks its config `token`
+where the two disagree, because the running gateway honours `.env`.
+
+To override all of that, pin it:
+
+```bash
+VB_PLANNER_URL=http://127.0.0.1:8650 VB_PLANNER_MODEL=virtuoso-bridge \
+  VB_PLANNER_KEY=<that gateway's key> .venv/bin/python floor/design_floor.py
+```
+
+Unset, the planner walks the profiles (preferred one first), asks each `/v1/models` what
+it actually serves, and falls back to a short list of bare ports. Nothing reachable is a
+stated reason, not a silent downgrade to the rules planner.
 
 Two properties worth stating plainly:
 
