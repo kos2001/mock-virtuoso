@@ -31,7 +31,7 @@ from toolkit.planner import (
     HERMES,
     PlanError,
     answer_text,
-    execute,
+    build_and_check,
     plan_and_validate,
     plan_with_rules,
     validate,
@@ -88,7 +88,7 @@ class Handler(BaseHTTPRequestHandler):
                 "It was sent back once with that reason and still did not validate. "
                 "Nothing was executed.", t0, planner_used, error=True)
         try:
-            report = execute(CLIENT, plan)
+            plan, report, planner_used = build_and_check(CLIENT, text, plan, planner_used)
         except Exception as exc:                               # noqa: BLE001
             return self._chat(f"bridge error: {type(exc).__name__}: {exc}", t0, planner_used,
                               error=True)
