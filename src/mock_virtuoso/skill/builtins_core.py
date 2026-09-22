@@ -86,6 +86,20 @@ def install(interp: Interpreter) -> None:
         items = _as_list(args[0])
         return items[1] if len(items) > 1 else NIL
 
+    def cons(it, args, kwargs):
+        # SKILL's cons builds a dotted pair when the tail is not a list. This
+        # interpreter models lists as Python lists and has no dotted pair, so
+        # it says so rather than returning something list-shaped that would
+        # behave differently from Virtuoso's.
+        head, tail = args[0], args[1]
+        if tail is NIL:
+            return [head]
+        if not isinstance(tail, list):
+            raise SkillError(
+                f"cons: this interpreter has no dotted pairs, so the second "
+                f"argument must be a list or nil, got {skill_repr(tail)}")
+        return [head] + tail
+
     def cdr(it, args, kwargs):
         items = _as_list(args[0])
         return items[1:] if len(items) > 1 else NIL
@@ -141,7 +155,7 @@ def install(interp: Interpreter) -> None:
         ("nth", nth), ("list", make_list), ("mapcar", mapcar),
         ("member", member),
         ("xCoord", xcoord), ("yCoord", ycoord),
-        ("atoi", atoi), ("atof", atof), ("csh", csh),
+        ("atoi", atoi), ("atof", atof), ("csh", csh), ("cons", cons),
         ("stringp", stringp),
     ):
         interp.register(name, fn)

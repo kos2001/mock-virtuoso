@@ -1,3 +1,6 @@
+import pytest
+
+from mock_virtuoso.skill.errors import SkillError
 from mock_virtuoso.skill.evaluator import Interpreter
 from mock_virtuoso.skill.values import NIL, TRUE
 
@@ -144,3 +147,32 @@ def test_stringp_false_for_number():
 
 def test_stringp_false_for_nil():
     assert run('stringp(nil)') is NIL
+
+
+# ---- cons: the constructor for the car/cdr family -----------------------
+
+def test_cons_prepends_to_a_list():
+    assert run("cons(1 list(2 3))") == [1, 2, 3]
+
+
+def test_cons_onto_nil_starts_a_list():
+    assert run("cons(1 nil)") == [1]
+
+
+def test_cons_accumulates_the_way_an_agent_would_use_it():
+    """The pattern two agents reached for while reading a cellview back."""
+    assert run("let((acc) foreach(x list(1 2 3) acc = cons(x acc)) acc)") == [3, 2, 1]
+
+
+def test_cons_round_trips_with_car_and_cdr():
+    assert run("car(cons(1 list(2 3)))") == 1
+    assert run("cdr(cons(1 list(2 3)))") == [2, 3]
+
+
+def test_cons_onto_a_non_list_is_refused():
+    """SKILL would make a dotted pair; this interpreter has no such value.
+
+    Fabricating something list-shaped would be worse than saying so.
+    """
+    with pytest.raises(SkillError, match="cons"):
+        run("cons(1 2)")
