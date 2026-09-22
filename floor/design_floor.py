@@ -251,6 +251,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        # These files are edited while the floor is running, and with no
+        # cache headers the browser keeps whatever it fetched first. That is
+        # how a fixed server went on serving a broken page: the fix arrived
+        # and the tab never asked for it.
+        self.send_header("Cache-Control", "no-store, must-revalidate")
         self.end_headers()
         self.wfile.write(body)
 

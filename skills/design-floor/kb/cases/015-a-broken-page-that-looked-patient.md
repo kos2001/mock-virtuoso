@@ -34,9 +34,22 @@ reported success. **A port being open is not evidence that your code is
 running.** The check has to be for something only the new build serves — a new
 route, a new lane, a string that did not exist before.
 
+## And a third cause, underneath both
+
+The floor sent no cache headers at all, so the browser kept whatever it had
+fetched first. Even once the server was fixed, a tab that had already loaded
+the page went on running the old one — the fix arrived and nothing asked for
+it. These files are edited while the floor is running, so they are now served
+`no-store, must-revalidate`.
+
+Checking that took one more wrong turn: `curl -sI` sends HEAD, which this
+server does not implement, so the header looked absent when it was there. A
+negative result from a request the server never answers is not a negative
+result.
+
 ## Resolution
 
-Two guards on the page, no rule for agents:
+Three guards, no rule for agents:
 
 - if `draw` or `mountAbout` is missing when the page script runs, it replaces
   the transcript with a red notice saying the scripts did not arrive and that
@@ -45,5 +58,10 @@ Two guards on the page, no rule for agents:
   was lost, since a transcript that simply stops growing looks identical to a
   quiet one.
 
+- every served file carries `Cache-Control: no-store`, so a running tab cannot
+  hold a stale copy of a page that is being edited underneath it.
+
 Verified by stripping the `<script src>` tags from the served HTML and
-rendering it: the notice appears.
+rendering it — the notice appears — and by loading the real page afterwards:
+scripts present, no notice, transcript filling, a request planned by hermes
+building `DEMO/INV` and `DEMO/TOP`.
