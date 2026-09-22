@@ -276,6 +276,34 @@ rule it produced and where that rule now lives, and a test checks the rule is
 really there. A lesson cannot quietly fall out of a skill while a case goes on
 claiming it.
 
+**And the cases reach the planner.** For a long time they did not: eighteen
+cases sat on disk while every request in words was planned cold, free to repeat
+a mistake this repository had written down, tested, and in one case written
+down twice. `toolkit/precedent.py` closes that, in two directions:
+
+- **before planning** — the standing lessons go into the system prompt. Only
+  cases marked `audience: planner` do: most teach an agent writing SKILL by
+  hand (`foreach` cannot count, a bare name is a variable) and would be noise
+  in a prompt that emits JSON ops. A block nobody finishes reading teaches
+  nothing.
+- **after a refusal** — `validate` already said exactly what was wrong, and
+  that sentence used to go only to the user, as the reason nothing was built.
+  It now goes back to the model once, carrying the cases whose `signature`
+  matches that error, each cited by id so the citation can be checked. Asked
+  for a power grid on `met7`, the planner is refused, told which layers exist,
+  and returns met2/met3 — one round trip instead of a dead end.
+
+Retrying is safe there in a way retrying a bridge error would not be:
+validation runs before a single op executes, so a refused plan leaves the
+design untouched. Bridge failures stay final.
+
+Retrieval is a regex over recorded signatures, not similarity over prose. The
+corpus is small and its failures are labelled by the tools themselves, so exact
+matching is more precise, needs no model, index or dependency, and can say
+*why* a case came back. The idea and its argument are lifted from
+`ppa-eda-agent/pipeline/case_retrieval.py`, which had named the same gap in its
+own first paragraph.
+
 The first ten cases came from one five-lane session: 112 calls, 27 failures, 11
 distinct. The largest single group — 11 of the 27 — was one bad error message in
 the mock, which had also produced two confidently wrong conclusions about the

@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # One loader, because the planner reads these cases too now and two parsers
 # for one file format is one parser too many.
-from toolkit.precedent import CASES, load_cases  # noqa: E402,F401
+from toolkit.precedent import AUDIENCES, load_cases  # noqa: E402
 
 
 def fetch_feed(source: str) -> dict:
@@ -91,9 +91,35 @@ def main() -> int:
         print("\nNot yet a case — these are the ones worth writing:")
         for count, reply, _ in unknown:
             print(f"  {count:3d}x  {reply[:76]}")
+        print(template(len(cases) + 1))
     else:
         print("\nEvery failure in this session is already a case.")
     return 0
+
+
+def template(number: int) -> str:
+    """The front matter a new case has to carry, printed where it is needed.
+
+    Six fields are required and the suite fails a case missing any of them.
+    Saying so only in the README meant reading the output here, writing the
+    case there, and finding out from a red test which field was forgotten.
+    """
+    return f"""
+Front matter every case needs — the suite checks all six:
+
+    ---
+    id: {number:03d}-<short-kebab-name>       # must match the filename
+    outcome: failure | success
+    signature: "<regex matching the reply above>"   # optional, but it is what
+                                                    # makes the case findable
+    lanes: <which lanes hit it, or all>
+    audience: {" | ".join(AUDIENCES)}    # who reads it; `planner` cases go
+                                          # into the plan prompt, so keep that
+                                          # list short enough to be read
+    rule: "<the sentence you added>"   # or none
+    rule_in: code | <path under skills/design-floor/> | none
+    ---
+"""
 
 
 if __name__ == "__main__":
