@@ -88,11 +88,14 @@ success you have not read back.
   in your report; they are what the next agent works from.
 - **Measure, do not assume.** When you need a cell's size, read its `bBox`. The
   number a colleague quoted may be from before their last edit.
-- **Clear before every build, not just the first.** If the cell you own has
-  content in it, empty it before drawing — and that includes your own second
-  attempt. A retry that skips this layers a whole cell on top of the last one:
-  the shapes are identical so it still looks right, and only the count gives it
-  away. Read the count back and compare it to what you drew.
+- **A failed call is not a no-op.** Nothing here is transactional: a script
+  that dies partway keeps whatever it had already created, and the error says
+  nothing about that. After any failure, assume the cell holds debris.
+- **Clear before every build, not just the first**, including your own second
+  attempt. Skip it and you layer a whole cell on top of the last one — the
+  shapes are identical, so the canvas, the bounding box and the pin labels all
+  look right, and only the count gives it away. Read the count back and compare
+  it to what you drew.
 
 ## What the session keeps
 
