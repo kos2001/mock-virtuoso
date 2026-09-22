@@ -322,6 +322,10 @@ def test_unknown_function_surfaces_as_bridge_error(bridge_client):
 # 아니라 브릿지가 내보내는 SKILL 자체의 결함이며, mock은 그 SKILL을
 # 충실히 실행할 뿐이다. Arcadia가 이 함수를 고치면 아래 두 단언은
 # 뒤집혀야 한다.
+#
+# 2026-09-22: 업스트림에 리포트했다 —
+#     https://github.com/Arcadia-1/virtuoso-bridge-lite/issues/158
+# 그 시점의 origin/main에도 그대로 남아 있음을 확인했다.
 
 
 def test_read_summary_upstream_bug_zero_instances_yields_nil(bridge_client):
