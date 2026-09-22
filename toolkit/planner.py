@@ -33,6 +33,8 @@ from virtuoso_bridge.virtuoso.layout import (
 
 LAYERS = {"nwell", "diff", "poly", "met1", "met2", "met3", "text"}
 ORIENTS = {"R0", "R90", "R180", "R270", "MX", "MY", "MXR90", "MYR90"}
+# The directions dbCreateTerm takes. A pin is a port, and a port has one.
+DIRECTIONS = {"input", "output", "inputOutput", "switch", "jumper", "unused"}
 MAX_OPS = 80
 
 from toolkit.precedent import guidance_block, precedent_block
@@ -43,9 +45,13 @@ PLAN_SCHEMA = (
     'Ops: {"op":"rect","layer":L,"x0":n,"y0":n,"x1":n,"y1":n}\n'
     '     {"op":"path","layer":L,"points":[[x,y],[x,y]],"width":n}\n'
     '     {"op":"label","layer":L,"x":n,"y":n,"text":T}\n'
+    '     {"op":"pin","net":N,"dir":D,"layer":L,"x0":n,"y0":n,"x1":n,"y1":n}\n'
     '     {"op":"place","child":C,"name":I,"x":n,"y":n,"orient":"R0"|"MY"}\n'
     f"Layers allowed: {', '.join(sorted(LAYERS))}. Coordinates are microns, keep them under 100.\n"
-    "If the request asks for instances of a cell, you MUST define that cell first: put its\n"
+    "A `pin` draws its rectangle AND gives the cell connectivity, so use it for every\n"
+"port the request names — a label is not a pin. `dir` is one of input, output,\n"
+"inputOutput, switch, jumper, unused. Pins go on metal, never on text.\n"
+"If the request asks for instances of a cell, you MUST define that cell first: put its\n"
     'shapes in "ops" with "cell" set to the cell name, and put the placements in\n'
     '{"then":{"cell":"<top>","ops":[{"op":"place",...}]}}. Never place a cell you did not define.'
 )
@@ -354,12 +360,24 @@ def _validate_op(o, where: str) -> dict:
     if not isinstance(o, dict):
         raise PlanError(f"{where} is not an object")
     kind = o.get("op")
-    if kind in ("rect", "path", "label"):
+    if kind in ("rect", "path", "label", "pin"):
         layer = o.get("layer")
         if layer not in LAYERS:
             raise PlanError(f"{where}: unknown layer {layer!r}; allowed: {sorted(LAYERS)}")
     if kind == "rect":
         return {"op": "rect", "layer": o["layer"],
+                **{k: _num(o.get(k), f"{where}.{k}") for k in ("x0", "y0", "x1", "y1")}}
+    if kind == "pin":
+        if o["layer"] == "text":
+            raise PlanError(
+                f"{where}: a pin is a piece of metal, not annotation; "
+                "text carries no connection")
+        direction = o.get("dir", "inputOutput")
+        if direction not in DIRECTIONS:
+            raise PlanError(
+                f"{where}.dir is {direction!r}; it is one of {sorted(DIRECTIONS)}")
+        return {"op": "pin", "layer": o["layer"], "dir": direction,
+                "net": _name(o.get("net"), f"{where}.net"),
                 **{k: _num(o.get(k), f"{where}.{k}") for k in ("x0", "y0", "x1", "y1")}}
     if kind == "label":
         text = o.get("text")
@@ -394,6 +412,16 @@ def _emit(op: dict, lib: str) -> str:
         return layout_create_rect(op["layer"], "drawing", op["x0"], op["y0"], op["x1"], op["y1"])
     if op["op"] == "path":
         return layout_create_path(op["layer"], "drawing", op["points"], op["width"])
+    if op["op"] == "pin":
+        # One op, because a pin is a rectangle *and* the connectivity that
+        # makes it a port. Splitting them is how a cell ends up with pin
+        # names and nothing to trace: the net is created only if the cell
+        # does not have it, and its terminal only if the net has none.
+        rect = layout_create_rect(op["layer"], "drawing",
+                                  op["x0"], op["y0"], op["x1"], op["y1"])
+        return (f'let((n f) n = dbCreateNet(cv "{op["net"]}") '
+                f'when(!n~>terminals dbCreateTerm(n "{op["net"]}" "{op["dir"]}")) '
+                f'f = {rect} dbCreatePin(n f))')
     if op["op"] == "label":
         return layout_create_label(op["layer"], "drawing", op["x"], op["y"], op["text"],
                                    "centerCenter", "R0", "stick", 0.3)
@@ -513,11 +541,17 @@ def execute(client, plan: dict) -> dict:
             f'dbOpenCellViewByType("{lib}" "{cell}" "layout" "maskLayout" "r")~>bBox')
         # Nothing used to look at whether the shapes were legal, so a 0.05 µm
         # wire built and read back exactly like a good one.
+        nets = client.execute_skill(
+            f'let((cv buf) cv = dbOpenCellViewByType("{lib}" "{cell}" '
+            '"layout" "maskLayout" "r") buf = "" '
+            'foreach(n cv~>nets buf = strcat(buf sprintf(nil "%s(%d) " '
+            'n~>name length(n~>pins)))) buf)')
         dr = client.execute_skill(
             f'mockDrcCheck(dbOpenCellViewByType("{lib}" "{cell}" '
             '"layout" "maskLayout" "r"))')
         report["cells"][cell] = {"shapes_by_layer": by_layer, "instances": insts,
                                  "bBox": (bb.output or "").strip(),
+                                 "nets": (nets.output or "").strip().strip('"').split(),
                                  "drc": _drc_lines(dr)}
     return report
 
@@ -679,8 +713,26 @@ def answer_text(plan: dict, report: dict, planner: str, elapsed: float) -> str:
                          "this cell is empty")
         for i in info["instances"]:
             lines.append(f"    inst {i['name']} ({i['cell']}) {i['orient']} bbox={i['bbox']}")
+        lines += _connectivity(info)
         lines += _drc_report(info)
     return "\n".join(lines)
+
+
+def _connectivity(info: dict) -> list[str]:
+    """What the cell can be traced through, and when it cannot.
+
+    A cell whose port names exist only as `text` places, draws and reads back
+    exactly like a wired one. Saying "nets: 0" next to "text×4" is the whole
+    point: the names are there and nothing is connected to them.
+    """
+    nets = info.get("nets") or []
+    if nets:
+        return [f"    nets: {' '.join(nets)}"]
+    labels = info.get("shapes_by_layer", {}).get("text", 0)
+    if labels:
+        return [f"    nets: none — {labels} text labels, but nothing carries a "
+                "net, so no port can be traced"]
+    return []
 
 
 # What a clean result is clean against. Printed either way: a reader who sees
