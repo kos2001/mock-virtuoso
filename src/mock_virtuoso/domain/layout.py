@@ -269,9 +269,31 @@ def install(session) -> None:
         for cv in design.open_cellviews:
             if target in cv.shapes:
                 cv.shapes.remove(target)
+                # A pin is a shape offered to a net. Delete the shape and the
+                # pin is not a pin any more: leaving it behind gives the net a
+                # connection point that no longer exists anywhere, and a
+                # rebuilt cell accumulates one per build.
+                for net in cv.get_prop("nets"):
+                    pins = net.get_prop("pins")
+                    for pin in [p for p in pins if p.get_prop("fig") is target]:
+                        pins.remove(pin)
                 return TRUE
             if target in cv.instances:
                 cv.instances.remove(target)
+                return TRUE
+            if target in cv.get_prop("nets"):
+                # Deleting a net takes its terminals and pins with it; the
+                # shapes stay, carrying no net, which is what a wire with no
+                # signal assigned is.
+                for term in list(target.get_prop("terminals")):
+                    if term in cv.get_prop("terminals"):
+                        cv.get_prop("terminals").remove(term)
+                for shape in cv.shapes:
+                    if shape.get_prop("net") is target:
+                        shape._slot_net = NIL
+                target.get_prop("pins").clear()
+                target.get_prop("terminals").clear()
+                cv.get_prop("nets").remove(target)
                 return TRUE
         return NIL
 
