@@ -61,6 +61,17 @@ functions are not implemented and say so. It interprets a subset of SKILL:
 layout calls. `ddGetLibList` and `dbCreateParamInst` are among the things it
 does not have.
 
+Absences agents keep reaching for: `while` `println` `copy` `equal` `makeTable`
+and `ddGetLibList` are not here, and neither is `dbCreateParamInst` — place
+instances with `dbCreateParamInstByMasterName`. Probe for a function by calling
+it. A bare name is a variable, so writing `someFunction` on its own answers
+"is there a variable called that", which is a different question and always no.
+
+Slot names worth knowing before you guess: shapes carry `lpp`, a
+(layer purpose) pair — there is no `layerName` and no `purpose` — along with
+`bBox` `points` `xy` `orient` `theLabel` `net` `width` and `viaDef`. Any slot
+you ask for that does not exist will list the ones that do.
+
 **Errors are loud on purpose.** A function it lacks raises `unknown function`
 rather than returning `nil`; a slot an object lacks names the slots it has; a
 via definition that does not exist is refused rather than drawn. Treat every

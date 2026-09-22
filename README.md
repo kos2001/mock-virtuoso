@@ -275,6 +275,20 @@ Five lanes ship: `cells` and `analog` draw leaf cells, `power` straps the row on
 met3, `top` floorplans and places instances, and `verify` draws nothing — it
 reads the finished design back and checks the other agents' claims against it.
 
+Each session leaves a knowledge base behind. `floor/harvest.py` reads the
+transcript, groups the failures, and matches them against the cases in
+`skills/design-floor/kb/` — what it cannot match is what nobody has written
+down yet. A case records what was tried, what came back and why, then names the
+rule it produced and where that rule now lives, and a test checks the rule is
+really there. A lesson cannot quietly fall out of a skill while a case goes on
+claiming it.
+
+The first ten cases came from one five-lane session: 112 calls, 27 failures, 11
+distinct. The largest single group — 11 of the 27 — was one bad error message in
+the mock, which had also produced two confidently wrong conclusions about the
+tool in agents' reports. Three cases record successes, including the one where
+an agent refused to size a power grid against a cell that was still empty.
+
 Each lane's brief is a file rather than a prompt. `skills/design-floor/SKILL.md`
 holds what every agent on the floor needs — how to reach the session, the
 technology, the house rules — and `roles/<lane>.md` holds that lane's job. An
