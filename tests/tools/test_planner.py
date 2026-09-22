@@ -620,7 +620,7 @@ def test_a_clean_cell_says_which_rules_it_passed():
         _report({"C": {"shapes_by_layer": {"met1": 2}, "bBox": "((0 0) (1 1))",
                        "instances": [], "drc": []}}),
         "hermes", 1.0)
-    assert "mockTech rules: clean" in text
+    assert "width, spacing, grid, area — clean" in text
 
 
 def test_a_placement_only_cell_does_not_claim_a_clean_check():
@@ -633,3 +633,25 @@ def test_a_placement_only_cell_does_not_claim_a_clean_check():
                          "drc": []}}),
         "hermes", 1.0)
     assert "clean" not in text
+
+
+def test_a_flood_of_violations_is_counted_not_quoted():
+    """Two hundred violations is one fact; two hundred lines buries the rest."""
+    text = api.answer_text(
+        {"lib": "L", "cell": "C"},
+        _report({"C": {"shapes_by_layer": {"met1": 200}, "bBox": "((0 0) (1 1))",
+                       "instances": [],
+                       "drc": [f"DRC-WIDTH-001 [error] met1: v{i}" for i in range(200)]}}),
+        "hermes", 1.0)
+    assert text.count("DRC-WIDTH-001") == api.DRC_QUOTED
+    assert "and 192 more (200 violations in total)" in text
+
+
+def test_a_violation_report_still_says_what_was_checked():
+    """Seeing only violations does not tell a reader what else was looked at."""
+    text = api.answer_text(
+        {"lib": "L", "cell": "C"},
+        _report({"C": {"shapes_by_layer": {"met1": 1}, "bBox": "((0 0) (1 1))",
+                       "instances": [], "drc": ["DRC-WIDTH-001 [error] met1: thin"]}}),
+        "hermes", 1.0)
+    assert api.DRC_SCOPE in text
