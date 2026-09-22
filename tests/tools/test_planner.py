@@ -288,3 +288,102 @@ def test_an_unrecognised_request_is_named_in_the_answer():
                            {"built": ["DEMO/CELL: 10 shapes"], "warnings": [], "cells": {}},
                            planner, 0.0)
     assert "not recognised" in text
+
+
+# -- finding the planner rather than assuming where it lives --------------
+
+class _FakeEndpoint:
+    """Stands in for an OpenAI-compatible server on some port."""
+
+    def __init__(self, models):
+        self.models = models
+        self.asked = []
+
+    def __call__(self, url, timeout):
+        self.asked.append(url)
+        if not self.models:
+            raise OSError("connection refused")
+        return {"data": [{"id": m} for m in self.models]}
+
+
+def test_discovery_picks_an_endpoint_that_answers(monkeypatch):
+    """A working server on a port nobody configured used to be invisible."""
+    seen = {}
+
+    def probe(url, timeout=5):
+        if "8642" in url:
+            raise OSError("connection refused")
+        seen["url"] = url
+        return {"data": [{"id": "mi-report"}]}
+
+    monkeypatch.setattr(api, "_list_models", probe)
+    found = api.discover_planner(["http://127.0.0.1:8642", "http://127.0.0.1:8644"])
+    assert found == ("http://127.0.0.1:8644", "mi-report")
+
+
+def test_discovery_prefers_the_configured_model_when_it_is_there(monkeypatch):
+    monkeypatch.setattr(api, "_list_models",
+                        lambda url, timeout=5: {"data": [{"id": "mi-report"}, {"id": "lsi"}]})
+    assert api.discover_planner(["http://x"], prefer="lsi") == ("http://x", "lsi")
+
+
+def test_discovery_reports_nothing_rather_than_guessing(monkeypatch):
+    def refuse(url, timeout=5):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(api, "_list_models", refuse)
+    assert api.discover_planner(["http://a", "http://b"]) is None
+
+
+# -- one unambiguous slip the model keeps making --------------------------
+
+def test_a_then_block_nested_inside_ops_is_lifted_out():
+    """The model put `then` in the ops array instead of beside it.
+
+    Asked for a strong-arm comparator it produced 41 ops of which the last was
+    not an op at all — a lone {"then": {...}}. The validator refused the whole
+    plan over it, correctly, and the request built nothing.
+
+    There is exactly one reading of that entry, so it is normalised rather
+    than guessed at. Anything else in ops that is not an op is still refused.
+    """
+    plan = api.validate({
+        "lib": "analog", "cell": "cmp",
+        "ops": [rect(),
+                {"then": {"cell": "testbench", "ops": [
+                    {"op": "place", "child": "cmp", "name": "X1",
+                     "x": 0, "y": 0, "orient": "R0"}]}}],
+    })
+    assert [o["op"] for o in plan["ops"]] == ["rect"]
+    assert plan["then"]["cell"] == "testbench"
+    assert [o["name"] for o in plan["then"]["ops"]] == ["X1"]
+
+
+def test_a_nested_then_does_not_overwrite_a_real_one():
+    with pytest.raises(PlanError, match="two `then` blocks"):
+        api.validate({
+            "lib": "L", "cell": "C", "ops": [rect(), {"then": {"cell": "A", "ops": []}}],
+            "then": {"cell": "B", "ops": []},
+        })
+
+
+def test_junk_in_ops_is_still_refused():
+    with pytest.raises(PlanError, match="unsupported op"):
+        api.validate({"lib": "L", "cell": "C", "ops": [rect(), {"colour": "red"}]})
+
+
+def test_a_configured_planner_wins_over_discovery(monkeypatch):
+    """Pinning beats probing: the deployment says which server to use."""
+    monkeypatch.setenv("VB_PLANNER_URL", "http://pinned:9000")
+    monkeypatch.setenv("VB_PLANNER_MODEL", "layout-planner")
+    monkeypatch.setattr(api, "discover_planner",
+                        lambda *a, **k: (_ for _ in ()).throw(
+                            AssertionError("discovery should not run when pinned")))
+    assert api.configured_planner() == ("http://pinned:9000", "layout-planner")
+
+
+def test_a_half_configured_planner_is_ignored(monkeypatch):
+    """A URL with no model is a mistake, not a configuration."""
+    monkeypatch.setenv("VB_PLANNER_URL", "http://pinned:9000")
+    monkeypatch.delenv("VB_PLANNER_MODEL", raising=False)
+    assert api.configured_planner() is None

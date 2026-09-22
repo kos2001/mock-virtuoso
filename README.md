@@ -317,6 +317,19 @@ plan (that model does not do OpenAI tool-calling, so it plans in JSON and this s
 executes); `--planner rules` is a deterministic parser that needs no LLM at all;
 `auto` prefers hermes and falls back.
 
+**Point it at a server of its own.** The planner used to hardcode one port, so a server
+on any other port was invisible and every request fell silently to the rules planner.
+Two variables now pin the endpoint and the model — configuration beating discovery:
+
+```bash
+VB_PLANNER_URL=http://127.0.0.1:8644 VB_PLANNER_MODEL=mi-report \
+  .venv/bin/python floor/design_floor.py
+```
+
+Unset, the planner probes the ports it knows, asks each one's `/v1/models` which models
+it actually serves, and uses the first that answers — so an unconfigured checkout still
+works, and a request that finds nothing says so instead of pretending.
+
 Two properties worth stating plainly:
 
 **The model's output is never executed.** Every plan passes a strict validator first —
