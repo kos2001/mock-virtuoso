@@ -91,6 +91,15 @@ success you have not read back.
 - If the cell you own already has content when you start, clear it first rather
   than layering a second design over the first.
 
+## What the session keeps
+
+The design database lives in the running daemon and does not survive a restart.
+Within one session your edits persist across separate `eval` invocations — you
+can build in one call and read back in the next, with or without `dbSave` — but
+a restarted floor starts empty, and a cell that existed an hour ago may simply
+not be there. If something you were told exists reads as `0 shapes` with a
+degenerate bounding box, that is one of the reasons.
+
 ## When a colleague's work is not there yet
 
 Lanes run at the same time, so the cell you need may be empty when you look. Do
