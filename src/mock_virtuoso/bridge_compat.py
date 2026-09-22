@@ -33,11 +33,15 @@ def build_layout(client: Any, lib: str, cell: str, view: str = "layout") -> Any:
     return client.layout.edit(lib, cell, view, mode="w")
 
 
+# Nets are cleared too. Without that line a rebuilt cell kept the nets of
+# every earlier build: the terminals and pins piled up, one set per build,
+# pointing at shapes that had just been deleted.
 _CLEAR_SKILL = (
     'let((cv) cv = dbOpenCellViewByType("{lib}" "{cell}" "{view}" "maskLayout" "a") '
     "foreach(s cv~>shapes dbDeleteObject(s)) "
     "foreach(i cv~>instances dbDeleteObject(i)) "
-    "length(cv~>shapes) + length(cv~>instances))"
+    "foreach(n cv~>nets dbDeleteObject(n)) "
+    "length(cv~>shapes) + length(cv~>instances) + length(cv~>nets))"
 )
 
 

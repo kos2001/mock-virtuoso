@@ -95,15 +95,56 @@ def test_a_term_needs_a_net_from_dbcreatenet(session):
 
 # -- clearing and reopening ------------------------------------------------
 
-def test_clearing_a_cell_takes_its_connectivity_with_it(session):
+def test_deleting_a_shape_takes_the_pin_that_offered_it(session):
+    """A pin whose figure is gone is a connection point that exists nowhere."""
     wired(session)
     session.evaluate('''let((cv)
-  cv = dbOpenCellViewByType("LIB" "INV" "layout" "maskLayout" "w")
+  cv = dbOpenCellViewByType("LIB" "INV" "layout" "maskLayout" "a")
   foreach(shape cv~>shapes dbDeleteObject(shape)))''')
-    # The cell still exists; what matters is that nets do not outlive a clear.
     assert session.evaluate(
-        'length(dbOpenCellViewByType("LIB" "INV" "layout" "maskLayout" "r")~>nets)'
-    ) in (0, 1)
+        'length(car(dbOpenCellViewByType("LIB" "INV" "layout" "maskLayout" "r")'
+        '~>nets)~>pins)') == 0
+
+
+def test_deleting_a_net_takes_its_terminals_and_frees_its_shapes(session):
+    wired(session)
+    assert session.evaluate('''let((cv)
+  cv = dbOpenCellViewByType("LIB" "INV" "layout" "maskLayout" "a")
+  foreach(n cv~>nets dbDeleteObject(n))
+  sprintf(nil "%d %d %d %L" length(cv~>nets) length(cv~>terminals)
+          length(cv~>shapes) car(cv~>shapes)~>net))''') == "0 0 1 nil"
+
+
+def test_rebuilding_a_cell_does_not_stack_its_connectivity(session):
+    """Three builds gave 1 shape, 3 terminals and 3 pins.
+
+    Two of those pins pointed at shapes that had just been deleted. The floor
+    clears and rebuilds on every request and on every rule correction, so this
+    was accumulating on the live design — case 013's shape, one layer down.
+    """
+    from mock_virtuoso.bridge_compat import _CLEAR_SKILL
+
+    clear = _CLEAR_SKILL.format(lib="LIB", cell="INV", view="layout")
+    seen = set()
+    for _ in range(3):
+        session.evaluate(clear)
+        wired(session)
+        seen.add(session.evaluate('''let((cv)
+  cv = dbOpenCellViewByType("LIB" "INV" "layout" "maskLayout" "r")
+  sprintf(nil "%d %d %d %d" length(cv~>shapes) length(cv~>nets)
+          length(cv~>terminals) length(car(cv~>nets)~>pins)))'''))
+    assert seen == {"1 1 1 1"}, seen
+
+
+def test_the_clear_counts_nets_so_the_confirmation_loop_sees_them(session):
+    """`clear_layout` retries until this returns 0; a net it cannot count is
+    a net it would report as cleared while it is still there."""
+    from mock_virtuoso.bridge_compat import _CLEAR_SKILL
+
+    wired(session)
+    assert "cv~>nets" in _CLEAR_SKILL
+    assert session.evaluate(
+        _CLEAR_SKILL.format(lib="LIB", cell="INV", view="layout")) == 0
 
 
 # -- leMarkNet stopped lying ----------------------------------------------
