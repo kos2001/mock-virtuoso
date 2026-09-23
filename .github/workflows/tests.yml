@@ -29,6 +29,14 @@ jobs:
             echo "::error::src/ imports the bridge; only tests/contract/ may"
             exit 1
           fi
+      # A unit test that imports the bridge fails here, where it is absent, and
+      # is never collected by the contract job, which runs tests/contract only.
+      - name: unit tests must not import virtuoso_bridge either
+        run: |
+          if grep -rnE '^\s*(import|from)\s+virtuoso_bridge' tests/ --include='*.py' --exclude-dir=contract --exclude-dir=tools; then
+            echo "::error::a unit test imports the bridge; move it to tests/contract/"
+            exit 1
+          fi
 
   package:
     name: package (the wheel stands alone)

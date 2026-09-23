@@ -114,8 +114,9 @@ def test_window_save_image_writes_a_real_file(session, tmp_path):
         'dbOpenCellViewByType("LIB" "C" "layout" "maskLayout" "w")')
     session.open_window(cv)
     target = tmp_path / "shot.png"
+    # as_posix: a Windows path's backslashes are escapes inside a SKILL string.
     session.evaluate(
-        f'hiWindowSaveImage(hiGetCurrentWindow() ?path "{target}" '
+        f'hiWindowSaveImage(hiGetCurrentWindow() ?path "{target.as_posix()}" '
         f'?format "png" ?toplevel t)')
     assert target.exists()
     assert target.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")

@@ -7,6 +7,8 @@ import threading
 import time
 from typing import Optional
 
+import pytest
+
 from mock_virtuoso.auth import (
     PROTOCOL_VERSION,
     Authenticator,
@@ -139,6 +141,8 @@ def test_serve_banner_flushed_when_redirected(tmp_path):
             proc.wait()
 
 
+@pytest.mark.skipif(sys.platform == "win32",
+                    reason="Popen.send_signal(SIGINT) is POSIX-only")
 def test_serve_responds_to_sigint(tmp_path):
     """Verify serve stops cleanly on SIGINT (Ctrl-C) within reasonable time."""
     # Run serve with port 0
