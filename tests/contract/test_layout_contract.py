@@ -510,6 +510,28 @@ def test_highlight_net_not_found_error_path(bridge_client):
     assert result.output.strip('"') == "ERROR: net not found: VDD"
 
 
+def test_highlight_net_finds_a_net_a_pin_carries(bridge_client):
+    """It reads `shape~>net~>name`, which was nil for every shape.
+
+    The operation could therefore only ever answer "net not found" — it was
+    untestable against this mock, in the exact way the mock exists to prevent.
+    """
+    client, session = bridge_client
+    _run(client,
+         'let((cv r n) '
+         'cv = dbOpenCellViewByType("LIB" "INV" "layout" "maskLayout" "w") '
+         'r = dbCreateRect(cv list("met1" "drawing") list(list(0 0) list(1 2))) '
+         'n = dbCreateNet(cv "VDD") dbCreateTerm(n "VDD" "inputOutput") '
+         'dbCreatePin(n r) t)')
+    session.open_window(session.design.find_cellview("LIB", "INV", "layout"))
+
+    found = client.execute_skill(layout_highlight_net("VDD"))
+    assert found.status == ExecutionStatus.SUCCESS
+    assert found.output.strip('"') == "highlighted net: VDD"
+    missing = client.execute_skill(layout_highlight_net("GND"))
+    assert missing.output.strip('"') == "ERROR: net not found: GND"
+
+
 # -- 브릿지의 client 편의 메서드 (raw SKILL 빌더가 아니라) ------------------
 #
 # 위 테스트들은 전부 raw SKILL 빌더(client.execute_skill(builder(...)))를

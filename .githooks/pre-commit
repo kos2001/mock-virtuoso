@@ -12,7 +12,8 @@
 [ "$SKIP_TESTS" = "1" ] && exit 0
 
 PY=.venv/bin/python
-[ -x "$PY" ] || PY=python3
+[ -x "$PY" ] || PY=.venv/Scripts/python   # a Windows venv
+[ -x "$PY" ] || [ -x "$PY.exe" ] || PY=python3
 
 printf 'pre-commit: running the suite... '
 if out=$("$PY" -m pytest -q 2>&1); then

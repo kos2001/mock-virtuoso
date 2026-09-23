@@ -194,21 +194,3 @@ def test_unmarking_clears_the_marks(session):
     assert session.marked_nets
     assert session.evaluate('leHiUnmarkNet()') is TRUE
     assert session.marked_nets == []
-
-
-# -- the bridge's own operation, end to end -------------------------------
-
-def test_the_bridges_highlight_net_op_works_against_this_mock(session):
-    """It reads `shape~>net~>name`, which was nil for every shape.
-
-    The operation could therefore only ever answer "net not found" — it was
-    untestable against this mock, in the exact way the mock exists to prevent.
-    """
-    from virtuoso_bridge.virtuoso.layout.ops import layout_highlight_net
-
-    wired(session)
-    session.evaluate('geOpen(?lib "LIB" ?cell "INV" ?view "layout" '
-                     '?viewType "maskLayout" ?mode "a")')
-    assert session.evaluate(layout_highlight_net("VDD")) == "highlighted net: VDD"
-    assert session.evaluate(layout_highlight_net("GND")) == (
-        "ERROR: net not found: GND")
