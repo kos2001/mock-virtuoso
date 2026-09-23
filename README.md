@@ -66,6 +66,24 @@ client.execute_skill("1+2")   # VirtuosoResult(status=SUCCESS, output='3')
 mock: `MockVirtuosoServer` is used as a context manager bound to port `0`
 (the OS picks a free port), and the client connects to `server.port`.
 
+### In a container
+
+```bash
+docker build -t mock-virtuoso .
+docker run --rm -p 65432:65432 -v ~/.virtuoso-bridge:/token \
+    --user "$(id -u):$(id -g)" mock-virtuoso
+```
+
+The mounted directory is how the client on the host and the daemon in the
+container share one token (see [Bridge token authentication](#bridge-token-authentication));
+`--user` keeps the 0600 file readable by you. For the tokenless legacy wire,
+mount nothing and pass `-e RB_ALLOW_UNAUTHENTICATED=1
+-e RB_TOKEN_PATH=/dev/null/bridge_token` — as with the real daemon, the opt-out
+applies only when no token file can be had. Artifacts such as screenshots land
+in `/artifacts`. The build copies the source and downloads nothing, so it also
+works behind a TLS-inspecting proxy. `docker run --rm mock-virtuoso eval '1+2'`
+runs the interpreter one-shot.
+
 ## Tests
 
 ```bash

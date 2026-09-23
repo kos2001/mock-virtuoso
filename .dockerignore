@@ -1,0 +1,4 @@
+*
+!src/mock_virtuoso/
+**/__pycache__
+**/*.pyc
