@@ -375,6 +375,16 @@ def main() -> int:
     env_path = HERE / "lanes.env"
     write_lane_env(lanes, env_path)
 
+    # Rehydrate installed example layouts on startup without changing user cells
+    # or downloading anything implicitly. All writes use the recorded bridge.
+    example_cache = HERE.parent / ".tools" / "standard-cells"
+    if (example_cache / "sources.json").is_file():
+        try:
+            from toolkit.standard_cell_layouts import populate
+            populate(VirtuosoClient.local(port=lanes["cells"].port), example_cache)
+        except (ImportError, OSError, ValueError, RuntimeError) as exc:
+            print(f"Standard-cell examples were not fully loaded: {exc}", file=sys.stderr)
+
     httpd = ThreadingHTTPServer(("127.0.0.1", HTTP_PORT), Handler)
     print(f"design floor  → http://127.0.0.1:{HTTP_PORT}")
     print(f"mock daemon   → 127.0.0.1:{mock.port}   (one design database)")

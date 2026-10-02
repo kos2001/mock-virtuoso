@@ -3,6 +3,24 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Agent Design Floor — mock-virtuoso</title>
 <link rel="icon" href="/favicon.svg">
+<script>
+(() => {
+  const key='mock-virtuoso.theme.v1', media=matchMedia('(prefers-color-scheme: dark)');
+  let choice='system';
+  try {choice=localStorage.getItem(key)||'system';} catch {}
+  function apply(value, persist=false) {
+    choice=['light','dark','system'].includes(value)?value:'system';
+    document.documentElement.dataset.theme=choice==='system'?(media.matches?'dark':'light'):choice;
+    document.querySelectorAll('[data-theme-choice]').forEach(select=>select.value=choice);
+    if(persist)try{localStorage.setItem(key,choice);}catch{}
+    window.dispatchEvent(new Event('floor-theme-change'));
+  }
+  window.floorTheme={apply,get choice(){return choice;}};
+  media.addEventListener('change',()=>{if(choice==='system')apply(choice);});
+  window.addEventListener('storage',event=>{if(event.key===key)apply(event.newValue||'system');});
+  apply(choice);
+})();
+</script>
 <style>
 :root{
   --bg:#0d1117; --panel:#131920; --edge:#222b36; --ink:#e6edf3; --dim:#8b949e;
@@ -27,6 +45,7 @@ main{flex:1;display:grid;grid-template-columns:var(--left,232px) 5px 1fr 5px var
 .grip::after{content:"";position:absolute;inset:0 -4px;cursor:col-resize}
 .col{display:flex;flex-direction:column;min-height:0;min-width:0}
 .col.left{border-right:1px solid var(--edge);background:var(--panel);overflow-y:auto}
+.col.left #lanes{max-height:42vh;overflow:auto;flex-shrink:0}
 .col.right{border-left:1px solid var(--edge);background:var(--panel)}
 h2{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);
    margin:0;padding:10px 12px 6px}
@@ -47,7 +66,10 @@ h2{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)
 .layer .nm{flex:1;font-size:11px}
 .layer .ct{color:var(--dim);font-size:10.5px}
 .tabs{display:flex;gap:4px;padding:7px 10px;border-bottom:1px solid var(--edge);
-      overflow-x:auto;background:var(--panel)}
+     overflow-x:auto;background:var(--panel)}
+.layout-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--edge)}
+.layout-controls label{display:flex;align-items:center;gap:8px;min-width:0;flex:1;font:600 13px system-ui}
+.layout-controls select{min-width:0;width:100%;max-width:480px}.layout-controls select,.layout-controls button{font:inherit;background:var(--input);color:var(--ink);border:1px solid var(--border);border-radius:6px;padding:7px}
 .tab{padding:3px 9px;border:1px solid var(--edge);border-radius:4px;cursor:pointer;
      white-space:nowrap;font-size:11.5px;color:var(--dim);background:transparent}
 .tab:hover{color:var(--ink)}
@@ -119,6 +141,57 @@ canvas:active{cursor:grabbing}
 #verification-panel .verify-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
 #verify-open{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--edge);border-radius:5px;padding:6px 10px;cursor:pointer}
 
+
+/* Shared surfaces keep forms, native controls and results consistent in both themes. */
+:root{color-scheme:dark;--surface:#182231;--input:#101823;--hover:#243349;--border:#40516a;--accent:#2563eb;--accent-ink:#fff;--canvas:#080e17;--grid:#182230;--axis:#30435a;--diagram:#101820;--node:#20354e;--plot:#80bcff;--warning:#f5d38f}
+:root[data-theme="light"]{color-scheme:light;--bg:#f3f6fb;--panel:#fff;--surface:#fff;--input:#f8fafd;--hover:#eaf1fc;--border:#b9c8db;--edge:#dce4ee;--ink:#18283d;--dim:#52647a;--ok:#167443;--err:#b42332;--hi:#185ac0;--accent:#245edb;--canvas:#f8fafd;--grid:#e5ebf3;--axis:#c1cfdf;--diagram:#f8fafd;--node:#e4eefb;--plot:#185ac0;--warning:#875b09}
+header{flex-wrap:wrap;padding:12px 18px;gap:10px}
+header h1{font:650 15px system-ui}header .right{font-size:10px}
+header button.tab,#verify-open{padding:8px 12px;border-radius:8px;color:var(--ink);background:var(--surface);font:500 12px system-ui}
+.theme-control{display:flex;align-items:center;gap:7px;font:12px system-ui;color:var(--dim)}
+.theme-control select{background:var(--input);color:var(--ink);border:1px solid var(--border);border-radius:7px;padding:7px;font:inherit}
+.layer:hover,.tab.on{background:var(--hover)}.ask input,#said,#said .plan pre,.empty pre{background:var(--input)}
+.ev{border-color:var(--edge)}.lane .last,.empty .stages li,.empty .clock{color:var(--dim)}
+#verification-panel,#circuit-panel{border-radius:16px;box-shadow:0 24px 100px #0004;color-scheme:inherit}
+#verification-panel .verify-heading{position:sticky;top:-24px;z-index:2;background:var(--bg);padding:14px 0;border-bottom:1px solid var(--edge);flex-wrap:wrap}
+#verification-panel h1{font-size:23px;margin:0}#verification-panel p{color:var(--dim)}
+#verification-panel fieldset,#verification-panel section{background:var(--surface);border-color:var(--edge);margin:20px 0;padding:22px}
+#verification-panel legend{font-size:15px;color:var(--hi)}
+#verification-panel input,#verification-panel select{background:var(--input);border-color:var(--border);color:var(--ink);min-height:40px}
+#verification-panel input[type=checkbox]{display:inline-block;width:18px;min-height:18px;margin:0 8px 0 0;vertical-align:middle;accent-color:var(--accent)}
+#verification-panel input[type=file]{padding:8px}input::file-selector-button{background:var(--hover);color:var(--ink);border:0;border-radius:5px;padding:6px 9px;margin-right:10px;cursor:pointer}
+#verification-panel button{background:var(--accent);color:var(--accent-ink);font-weight:550}
+#verification-panel button.secondary,#verify-pex,#verify-evidence{background:var(--hover);color:var(--ink);border:1px solid var(--edge)}
+#verification-panel td,#verification-panel th{border-color:var(--edge);overflow-wrap:anywhere}
+#verification-panel th{color:var(--dim);font-size:12px;background:var(--input)}
+#verification-panel .pass{color:var(--ok)}#verification-panel .fail,#verification-panel .error{color:var(--err)}#verification-panel .not_run{color:var(--warning)}
+#verification-panel .muted{color:var(--dim)}#verification-panel .notice{background:var(--hover);border-color:var(--hi);border-radius:8px}
+#verification-panel .result-title{flex-wrap:wrap;gap:8px}#verification-panel h2{color:var(--ink);letter-spacing:0;text-transform:none}
+#verify-go{width:100%;min-height:46px;font-size:15px}#verification-panel pre{background:var(--input);padding:14px;border-radius:8px}
+:focus-visible{outline:2px solid var(--hi);outline-offset:3px}
+@media(max-width:700px){header .right,header .sub{display:none}header{padding:9px;gap:7px}header h1{font-size:13px}header .theme-control{margin-left:auto}header #aboutSlot{margin-left:0!important}main{grid-template-columns:minmax(0,1fr)}main>.left,main>.right,main>.grip{display:none}.status{flex-wrap:wrap;gap:8px}.status>div:last-child{display:none}.ask input{min-width:0}#verification-panel{padding:16px}#verification-panel .verify-heading{top:-16px}#verification-panel fieldset{padding:14px;min-width:0}}
+@media(prefers-reduced-motion:reduce){.pulse{animation:none}}
+/* Light surfaces need solid text, not the subdued weights used on dark panels. */
+:root[data-theme="light"]{--ink:#101828;--dim:#334155;--border:#8a9bb0;--edge:#c8d3e0;--hi:#134fa8;--ok:#126137;--plot:#134fa8;--ui-font:"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",sans-serif}
+:root[data-theme="light"] body{font-family:var(--ui-font);font-size:14px;font-weight:500;line-height:1.6}
+:root[data-theme="light"] header h1{font-family:var(--ui-font);font-weight:700}
+:root[data-theme="light"] :is(header .sub,header .right,.lane .role,.lane .stats,.lane .last,.layer .nm,.layer .ct,.status,.ev .hd,.empty,.empty summary,.empty .clock,.tab,.theme-control){font-size:13px;font-weight:500}
+:root[data-theme="light"] :is(header button.tab,#verify-open,.theme-control select){font-size:13px;font-weight:600}
+:root[data-theme="light"] :is(.col>h2,.chip){font-size:12px;font-weight:700}
+:root[data-theme="light"] :is(.ev .sk,.ev .rp,#said,.empty pre,#said .plan pre){font:500 13px/1.65 ui-monospace,Consolas,"Malgun Gothic",monospace}
+:root[data-theme="light"] :is(#verification-panel,#circuit-panel,.mv-about){font-family:var(--ui-font);font-size:15px;font-weight:500;line-height:1.65}
+:root[data-theme="light"] :is(#verification-panel,#circuit-panel) :is(p,.muted){font-size:14px;font-weight:500;color:var(--dim)}
+:root[data-theme="light"] :is(#verification-panel,#circuit-panel) :is(label,th,legend,summary){font-size:14px;font-weight:600;color:var(--ink)}
+:root[data-theme="light"] :is(#verification-panel,#circuit-panel) :is(input,select,button){font-family:var(--ui-font);font-size:14px;font-weight:600}
+:root[data-theme="light"] :is(#verification-panel,#circuit-panel) :is(td,pre){font-size:14px;font-weight:500}
+:root[data-theme="light"] :is(input,textarea)::placeholder{color:#526174;opacity:1;font-weight:500}
+:root[data-theme="light"] :is(button,input,select):disabled{opacity:1;color:#526174!important;background:#e2e8f0!important;border-color:#a8b6c8!important}
+:root[data-theme="light"] .layer.off{opacity:1;color:var(--dim);text-decoration:line-through}
+:root[data-theme="light"] .layer.off .sw{opacity:.4}
+:root[data-theme="light"] #circuit-panel svg text{font-family:var(--ui-font);font-size:14px;font-weight:600}
+:root[data-theme="light"] .mv-about :is(h3,.foot,.mv-lang button,.x){font-size:13px;font-weight:600;color:var(--dim)}
+:root[data-theme="light"] .mv-about pre{font-size:13px;font-weight:500}
+
 </style>
 
 <header>
@@ -128,6 +201,7 @@ canvas:active{cursor:grabbing}
     <div class="sub">agents → virtuoso-bridge → one mock Virtuoso design database</div>
   </div>
   <div class="right">every line below crossed the wire as SKILL</div>
+  <label class="theme-control">화면 테마<select data-theme-choice aria-label="화면 테마"><option value="system">시스템</option><option value="light">밝게</option><option value="dark">어둡게</option></select></label>
   <div id="aboutSlot" style="margin-left:12px"></div>
   <button id="verify-open" type="button" aria-haspopup="dialog">PDK · DRC / LVS</button>
 </header>
@@ -146,6 +220,7 @@ canvas:active{cursor:grabbing}
        aria-label="resize the agents panel"></div>
 
   <div class="col">
+    <div class="layout-controls"><label>레이아웃 셀<select id="layout-cell" aria-label="레이아웃 셀"></select></label><button id="layout-fit" type="button">전체 보기</button></div>
     <div class="tabs" id="tabs"></div>
     <div class="canvas"><canvas id="cv"></canvas></div>
 
@@ -328,6 +403,9 @@ function renderTask(){
 }
 
 function renderTabs(){
+  const picker=$("layout-cell");picker.replaceChildren();
+  for(const c of cells){const option=document.createElement('option');option.value=`${c.lib}/${c.cell}`;option.textContent=option.value;picker.append(option);}
+  picker.value=current||'';
   $("tabs").innerHTML = cells.map(c => {
     const key = `${c.lib}/${c.cell}`;
     return `<div class="tab${key === current ? " on" : ""}" data-key="${esc(key)}">
@@ -516,6 +594,16 @@ for (const [id, side] of [["gripL", "left"], ["gripR", "right"]]) {
   });
 }
 
+$("layout-cell").onchange=()=>{current=$("layout-cell").value;renderTabs();load(true);};
+$("layout-fit").onclick=()=>fit();
 $("aboutSlot").appendChild(mountAbout("floor"));
+for(const heading of document.querySelectorAll('.verify-heading,.circuit-heading')){
+  const control=document.querySelector('.theme-control').cloneNode(true);
+  heading.insertBefore(control,heading.lastElementChild);
+}
+document.querySelectorAll('[data-theme-choice]').forEach(select=>{
+  select.value=window.floorTheme.choice;
+  select.addEventListener('change',()=>window.floorTheme.apply(select.value,true));
+});
 resize(); renderTabs(); poll();
 </script>

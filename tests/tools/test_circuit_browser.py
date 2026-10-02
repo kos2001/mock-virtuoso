@@ -43,6 +43,17 @@ def test_edit_check_simulate_save_and_restore_in_same_floor(tmp_path, monkeypatc
             page.locator("#circuit-open").click()
             playwright.expect(page.locator("#circuit-engine")).to_contain_text("준비됨")
             playwright.expect(page.locator("#circuit-file")).to_be_hidden()
+            # Theme changes update both the canvas and native dialog, preserving inputs.
+            theme = page.locator('#circuit-panel [data-theme-choice]')
+            theme.select_option('light')
+            playwright.expect(page.locator('html')).to_have_attribute('data-theme', 'light')
+            assert page.locator('#circuit-name').input_value() == 'DIVIDER'
+            assert page.locator('#circuit-name').evaluate('e=>getComputedStyle(e).backgroundColor') == 'rgb(248, 250, 253)'
+            light_pixel = page.locator('#cv').evaluate('e=>Array.from(e.getContext("2d").getImageData(1,1,1,1).data)')
+            theme.select_option('dark')
+            dark_pixel = page.locator('#cv').evaluate('e=>Array.from(e.getContext("2d").getImageData(1,1,1,1).data)')
+            assert light_pixel != dark_pixel
+            theme.select_option('light')
             page.locator("#circuit-run").click()
             playwright.expect(page.locator("#circuit-status")).to_contain_text("해석 완료", timeout=15000)
             playwright.expect(page.locator("#circuit-values")).to_contain_text("0.500000")
@@ -81,6 +92,7 @@ def test_edit_check_simulate_save_and_restore_in_same_floor(tmp_path, monkeypatc
             playwright.expect(page.locator("#cv")).to_be_visible()
             assert page.url == url
             page.reload()
+            playwright.expect(page.locator('html')).to_have_attribute('data-theme', 'light')
             page.locator("#circuit-open").click()
             playwright.expect(page.locator("#circuit-analysis")).to_have_value("dc")
             page.set_viewport_size({"width": 390, "height": 844})

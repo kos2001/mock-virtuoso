@@ -85,7 +85,7 @@ def test_settings_upload_export_and_project_rule_result(tmp_path, monkeypatch):
         original_url = page.url
         page.locator("#verify-close").click()
         playwright.expect(page.locator("#cv")).to_be_visible()
-        playwright.expect(page.locator("#go")).to_have_text("Build")
+        playwright.expect(page.locator("#go")).to_have_text("생성")
         page.locator("#verify-open").click()
         assert page.url == original_url
         playwright.expect(page.locator("#verify-top")).to_have_value("sky130_fd_sc_hd__inv_1")

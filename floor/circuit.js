@@ -1,3 +1,42 @@
+// Runnable educational CMOS topologies; these are not foundry library cell views.
+function standardCellExamples() {
+  const definitions=[['INV',['A'],'!A'],['BUF',['A'],'A'],['NAND2',['A','B'],'!(A & B)'],
+    ['NOR2',['A','B'],'!(A | B)'],['AND2',['A','B'],'A & B'],['OR2',['A','B'],'A | B'],
+    ['XOR2',['A','B'],'A ^ B'],['XNOR2',['A','B'],'!(A ^ B)'],
+    ['MUX2',['A','B','S'],'S ? B : A'],['AOI21',['A','B','C'],'!((A & B) | C)'],
+    ['OAI21',['A','B','C'],'!((A | B) & C)']];
+  return definitions.map(([name,inputs,expression])=>{
+    const devices=[{id:'VDD',kind:'V',nodes:['vdd','0'],value:1.8,ac:0}];
+    let serial=0;
+    const internal=()=>`n${++serial}`;
+    function mos(kind,d,g,s,w){devices.push({id:`M${++serial}`,kind,nodes:[d,g,s,kind==='NMOS'?'0':'vdd'],width:w*1e-6,length:.15e-6});}
+    function inv(a,y){mos('NMOS',y,a,'0',.65);mos('PMOS',y,a,'vdd',1.3);}
+    function nand(a,b,y){const n=internal();mos('NMOS',y,a,n,1.3);mos('NMOS',n,b,'0',1.3);mos('PMOS',y,a,'vdd',1.3);mos('PMOS',y,b,'vdd',1.3);}
+    function nor(a,b,y){const n=internal();mos('NMOS',y,a,'0',.65);mos('NMOS',y,b,'0',.65);mos('PMOS',y,a,n,2.6);mos('PMOS',n,b,'vdd',2.6);}
+    function and(a,b,y){const n=internal();nand(a,b,n);inv(n,y);}
+    function or(a,b,y){const n=internal();nor(a,b,n);inv(n,y);}
+    function xor(a,b,y){const n=internal(),p=internal(),q=internal();nand(a,b,n);nand(a,n,p);nand(b,n,q);nand(p,q,y);}
+    const y='vout';
+    if(name==='INV')inv('a',y);
+    if(name==='BUF'){const n=internal();inv('a',n);inv(n,y);}
+    if(name==='NAND2')nand('a','b',y);
+    if(name==='NOR2')nor('a','b',y);
+    if(name==='AND2')and('a','b',y);
+    if(name==='OR2')or('a','b',y);
+    if(name==='XOR2')xor('a','b',y);
+    if(name==='XNOR2'){const n=internal();xor('a','b',n);inv(n,y);}
+    if(name==='MUX2'){const ns=internal(),p=internal(),q=internal();inv('s',ns);nand('a',ns,p);nand('b','s',q);nand(p,q,y);}
+    if(name==='AOI21'){const n=internal();and('a','b',n);nor(n,'c',y);}
+    if(name==='OAI21'){const n=internal();or('a','b',n);nand(n,'c',y);}
+    inputs.forEach((input,i)=>{const half=20e-9*2**i;devices.push({id:'V'+input,kind:'V',nodes:[input.toLowerCase(),'0'],value:0,ac:0,
+      pulse:{low:0,high:1.8,delay:half,rise:.1e-9,fall:.1e-9,width:half-.1e-9,period:2*half}});});
+    devices.push({id:'CL',kind:'C',nodes:[y,'0'],value:5e-15});
+    return {name,inputs,expression,circuit:{name:'SKY130_'+name,model_profile:'sky130',corner:'tt',temperature_c:27,devices,
+      analysis:{type:'tran',step:.1e-9,stop:20e-9*2**inputs.length}}};
+  });
+}
+
+// Circuit editor.
 (() => {
 'use strict';
 const button = document.createElement('button');
@@ -22,22 +61,53 @@ panel.innerHTML = `
 #circuit-panel .muted{color:var(--dim)}#circuit-panel table{border-collapse:collapse;width:100%}#circuit-panel td,#circuit-panel th{text-align:left;padding:8px;border-bottom:1px solid var(--edge)}
 #circuit-panel .bad{color:#ffaaa4}#circuit-panel .good{color:#8edca0}#circuit-panel :focus-visible{outline:2px solid var(--hi);outline-offset:2px}
 @media(max-width:700px){#circuit-panel{padding:14px}#circuit-panel .device{grid-template-columns:1fr 1fr}#circuit-panel input{width:100%}}
+
+#circuit-panel{padding:24px;background:var(--bg)}
+#circuit-panel .circuit-heading{position:sticky;top:-24px;z-index:2;margin-top:0;background:var(--bg);padding:14px 0;border-bottom:1px solid var(--edge)}
+#circuit-panel fieldset{min-width:0;border:1px solid var(--edge);border-radius:12px;background:var(--surface);padding:20px;margin:20px 0}
+#circuit-panel legend{font-size:15px;font-weight:650;color:var(--hi);padding:0 8px}
+#circuit-panel input,#circuit-panel select{background:var(--input);color:var(--ink);border-color:var(--border);min-height:40px}
+#circuit-panel button{background:var(--surface);border-color:var(--border);border-radius:7px;padding:9px 12px;font-weight:500}
+#circuit-panel button:hover:not(:disabled){background:var(--hover);border-color:var(--hi)}
+#circuit-panel button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+#circuit-panel .device{gap:12px;padding:14px 0}#circuit-panel label{font-size:12px;color:var(--dim)}
+#circuit-panel label input,#circuit-panel label select{font-size:14px}
+#circuit-panel details{border:1px solid var(--edge);border-radius:10px;background:var(--surface);padding:14px 16px;margin:12px 0}
+#circuit-panel summary{cursor:pointer;font-weight:600;color:var(--ink)}
+#circuit-panel details[open]>summary{margin-bottom:12px}
+#circuit-panel #circuit-status,#circuit-panel #circuit-engine{padding:11px 14px;border:1px solid var(--edge);border-radius:8px;background:var(--hover);color:var(--ink)}
+#circuit-panel svg{background:var(--diagram);border-radius:8px}
+#circuit-panel .bad{color:var(--err)}#circuit-panel .good{color:var(--ok)}
+#circuit-panel th{background:var(--input);font-size:12px;color:var(--dim)}
+#circuit-panel pre{background:var(--input);padding:12px;border-radius:8px}
+#circuit-panel .theme-control{flex-direction:row;align-items:center;margin-left:auto}
+#circuit-panel .inline-choice{flex-direction:row;align-items:center;gap:7px;border:1px solid var(--edge);border-radius:7px;padding:6px 9px;background:var(--input)}
+#circuit-panel input[type=checkbox]{width:17px;min-height:17px;accent-color:var(--accent)}
+#circuit-panel input[type=range]{padding:0;min-height:24px;accent-color:var(--accent)}
+#circuit-panel .wave-scroll{overflow-x:auto}#circuit-panel #circuit-plot{min-width:640px;max-height:none;cursor:crosshair}
+#circuit-panel #circuit-probe{display:block;font:600 13px/1.8 ui-monospace,Consolas,monospace;padding:10px;background:var(--hover);border-radius:7px;overflow-wrap:anywhere}
+#circuit-panel .trace-swatch{width:10px;height:10px;border-radius:50%;display:inline-block}
+@media(max-width:700px){#circuit-panel{padding:14px}#circuit-panel .circuit-heading{top:-14px}#circuit-panel .circuit-heading h1{font-size:18px;flex-basis:100%}#circuit-panel fieldset{padding:12px}#circuit-panel .device{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#circuit-panel .theme-control{margin-left:0}#circuit-panel .theme-control select{width:auto}}
+
 </style>
-<div class="bar"><h1 id="circuit-title">회로 편집 · ERC · ngspice</h1><button id="circuit-close" type="button" style="margin-left:auto">닫기</button></div>
+<div class="bar circuit-heading"><h1 id="circuit-title">회로 편집 · ERC · ngspice</h1><button id="circuit-close" type="button" style="margin-left:auto">닫기</button></div>
 <p class="muted">소자의 net 이름으로 연결합니다. 접지는 0, 값은 SI 단위입니다(1 kΩ = 1000, 1 µF = 1e-6). 범용 모델과 SKY130 모델을 선택할 수 있습니다.</p>
 <p id="circuit-engine" role="status">시뮬레이터 확인 중…</p>
 <div class="bar"><button id="circuit-save">설계 DB에 저장</button><button id="circuit-load">DB에서 불러오기</button><button id="circuit-import">JSON 가져오기</button><button id="circuit-export">JSON 저장</button><button id="circuit-spice">SPICE 내보내기</button><button id="circuit-example">분압기 예제</button><input id="circuit-file" type="file" accept=".json" hidden></div>
 <p class="muted">DB 저장은 현재 서버의 CIRCUITS 라이브러리에 같은 이름의 회로를 대체합니다. 서버 재시작 후에도 보관하려면 JSON으로 저장하세요.</p>
-<form id="circuit-form">
+<form id="circuit-form"><fieldset><legend>1. 회로와 공정 모델</legend>
+<div class="bar"><label>표준 셀 예제<select id="circuit-cell-example"></select></label><button id="circuit-cell-load" type="button">예제 불러오기</button></div>
+<p id="circuit-cell-description" class="muted"></p>
+<p class="muted">학습용 CMOS 회로입니다. 공인 표준 셀 라이브러리의 레이아웃·타이밍 뷰는 포함하지 않습니다. 1.8 V 입력과 5 fF 부하로 모든 입력 조합을 순서대로 실행합니다.</p>
 <button id="circuit-pdk-example" type="button">SKY130 인버터 예제</button>
 <p>SKY130 선택 시 1.8 V NMOS/PMOS 공정 모델을 사용합니다. 공개 PDK 결과는 제조 승인과 별개입니다.</p>
 <div class="bar"><label>모델<select id="circuit-profile"><option value="generic">범용 예제</option><option value="sky130">SKY130 · 1.8 V MOS</option></select></label><label>Corner<select id="circuit-corner"><option>tt</option><option>ff</option><option>ss</option><option>fs</option><option>sf</option></select></label></div>
 <div class="bar"><label>회로 이름<input id="circuit-name" required maxlength="48"></label><label>온도 (°C)<input id="circuit-temp" type="number" min="-100" max="250" step="any" value="27"></label></div>
-<div id="circuit-devices"></div><div class="bar"><button id="circuit-add" type="button">+ 소자 추가</button></div>
+</fieldset><fieldset><legend>2. 소자와 연결</legend><div id="circuit-devices"></div><div class="bar"><button id="circuit-add" type="button">+ 소자 추가</button></div>
 <details open><summary>연결도 · 같은 net 이름은 전기적으로 연결됩니다</summary><svg id="circuit-diagram" role="img" aria-label="회로 연결도"></svg></details>
-<div class="bar"><label>해석<select id="circuit-analysis"><option value="op">동작점 (OP)</option><option value="dc">DC sweep</option><option value="ac">AC 주파수 응답</option><option value="tran">과도해석 (Transient)</option></select></label><div id="circuit-params" class="bar"></div></div>
+</fieldset><fieldset><legend>3. 해석과 실행</legend><div class="bar"><label>해석<select id="circuit-analysis"><option value="op">동작점 (OP)</option><option value="dc">DC sweep</option><option value="ac">AC 주파수 응답</option><option value="tran">과도해석 (Transient)</option></select></label><div id="circuit-params" class="bar"></div></div>
 <div class="bar"><button id="circuit-check" type="button">ERC / 넷리스트 확인</button><button id="circuit-run" type="submit" class="primary">시뮬레이션 실행</button></div>
-</form>
+</fieldset></form>
 <details><summary>Post-layout · 추출 회로 재시뮬레이션</summary><p>검증 창에서 LVS와 PEX가 통과한 실행 ID를 입력하세요. 위 회로에는 전원·입력 소스와 RLC 부하를 구성하고, 아래에 추출 핀과 testbench net의 연결을 지정합니다.</p>
 <div class="bar"><label>검증 실행 ID<input id="circuit-layout-id" size="36"></label><label>핀 연결 JSON<input id="circuit-ports" size="60" value='{"VPB":"vdd","VNB":"0","VGND":"0","VPWR":"vdd","A":"vin","Y":"vout"}'></label><button id="circuit-postlayout">PEX 회로 실행</button></div></details>
 <details><summary>실험 관리 · corners / 온도 / sweep / 합격 기준</summary>
@@ -49,13 +119,23 @@ panel.innerHTML = `
 </details>
 <p id="circuit-status" role="status" aria-live="polite">실행 전입니다. 회로 입력은 이 브라우저에 저장됩니다.</p>
 <section id="circuit-results" hidden><h2>검사 · 해석 결과</h2><ul id="circuit-issues"></ul>
-<div id="circuit-wave" hidden><div class="bar"><label>신호<select id="circuit-vector"></select></label><label>표시<select id="circuit-mode"><option value="real">실수값</option><option value="magnitude">크기</option><option value="phase">위상 (°)</option></select></label><button id="circuit-report">결과 JSON 저장</button></div><svg id="circuit-plot" role="img" aria-label="시뮬레이션 파형"></svg><p id="circuit-range" class="muted"></p><table><thead><tr><th>신호</th><th>마지막 값</th><th>단위</th></tr></thead><tbody id="circuit-values"></tbody></table></div>
+<div id="circuit-wave" hidden><div class="bar"><label>신호<select id="circuit-vector"></select></label><label>표시<select id="circuit-mode"><option value="real">실수값</option><option value="magnitude">크기</option><option value="phase">위상 (°)</option></select></label><label class="inline-choice"><input id="circuit-multi" type="checkbox">여러 신호 함께</label><button id="circuit-report">결과 JSON 저장</button></div>
+<div id="circuit-traces" class="bar" aria-label="표시할 신호"></div>
+<div class="bar"><button id="circuit-zoom-in" type="button">확대 +</button><button id="circuit-zoom-out" type="button">축소 −</button><button id="circuit-zoom-reset" type="button">전체 보기</button><label>시간축 이동<input id="circuit-pan" type="range" min="0" max="100" value="0" step="1"></label></div>
+<div class="wave-scroll"><svg id="circuit-plot" role="img" aria-label="시뮬레이션 파형"></svg></div>
+<label>측정 커서<input id="circuit-cursor" type="range" min="0" max="0" value="0" step="1"></label><output id="circuit-probe" data-no-translate></output>
+<p id="circuit-range" class="muted"></p><details><summary>신호별 마지막 값</summary><table><thead><tr><th>신호</th><th>마지막 값</th><th>단위</th></tr></thead><tbody id="circuit-values" data-no-translate></tbody></table></details></div>
 <details><summary>SPICE 넷리스트</summary><pre id="circuit-netlist"></pre></details><details><summary>실행 로그</summary><pre id="circuit-log"></pre></details></section>`;
 document.body.append(panel);
 const $ = id => document.getElementById('circuit-' + id);
 const key = 'mock-virtuoso.circuit.v1';
 let circuit, defaults, result, available = false, busy = false;
 const kinds = ['R','C','L','V','I','D','NMOS','PMOS'];
+const cellExamples=standardCellExamples();
+for(const example of cellExamples){const option=document.createElement('option');option.value=example.name;option.textContent=example.name+' · '+example.expression;$('cell-example').append(option);}
+function describeExample(){const ex=cellExamples.find(e=>e.name===$('cell-example').value);$('cell-description').textContent=`${ex.name} · Y = ${ex.expression} · ${ex.inputs.join(', ')} → vout · 1.8 V / 5 fF`;}
+$('cell-example').onchange=describeExample;describeExample();
+$('cell-load').onclick=()=>{const ex=cellExamples.find(e=>e.name===$('cell-example').value);apply(ex.circuit);$('multi').checked=true;$('corners').value='tt';$('temperatures').value='27';$('sweep-device').value='';$('sweep-values').value='';$('measure-signal').value='v(vout)';$('statistic').value='max';$('min').value='1.6';$('max').value='1.9';say('표준 셀 예제를 불러왔습니다. 시뮬레이션 실행 후 입력과 vout 파형을 비교하세요.');};
 const ns = 'http://www.w3.org/2000/svg';
 function svg(parent, kind, attrs, text) {
   const node = document.createElementNS(ns, kind);
@@ -114,12 +194,12 @@ function diagram() {
   const target=$('diagram');target.replaceChildren();const columns=3,rows=Math.max(1,Math.ceil(circuit.devices.length/columns));target.setAttribute('viewBox',`0 0 900 ${rows*125}`);
   circuit.devices.forEach((d,i)=>{
     const x=150+(i%columns)*300,y=55+Math.floor(i/columns)*125;
-    svg(target,'path',{d:`M ${x-105} ${y} H ${x-42} M ${x+42} ${y} H ${x+105}`,stroke:'#8abfff',fill:'none'});
-    svg(target,'rect',{x:x-42,y:y-20,width:84,height:40,rx:5,fill:'#1f3048',stroke:'#8abfff'});
-    svg(target,'text',{x,y:y+5,fill:'#e6edf3','text-anchor':'middle','font-size':14},d.kind+' '+d.id);
-    svg(target,'text',{x:x-105,y:y-10,fill:'#aac5e5','font-size':12},d.nodes[0]||'?');
-    svg(target,'text',{x:x+105,y:y-10,fill:'#aac5e5','text-anchor':'end','font-size':12},d.nodes[1]||'?');
-    svg(target,'text',{x,y:y+43,fill:'#8b949e','text-anchor':'middle','font-size':12},d.kind.endsWith('MOS')?'D,G,S,B: '+d.nodes.join(', '):(d.value??'generic diode'));
+    svg(target,'path',{d:`M ${x-105} ${y} H ${x-42} M ${x+42} ${y} H ${x+105}`,stroke:'var(--plot)',fill:'none'});
+    svg(target,'rect',{x:x-42,y:y-20,width:84,height:40,rx:5,fill:'var(--node)',stroke:'var(--plot)'});
+    svg(target,'text',{x,y:y+5,fill:'var(--ink)','text-anchor':'middle','font-size':14},d.kind+' '+d.id);
+    svg(target,'text',{x:x-105,y:y-10,fill:'var(--dim)','font-size':12},d.nodes[0]||'?');
+    svg(target,'text',{x:x+105,y:y-10,fill:'var(--dim)','text-anchor':'end','font-size':12},d.nodes[1]||'?');
+    svg(target,'text',{x,y:y+43,fill:'var(--dim)','text-anchor':'middle','font-size':12},d.kind.endsWith('MOS')?'D,G,S,B: '+d.nodes.join(', '):(d.value??'generic diode'));
   });
 }
 function render(report) {
@@ -131,6 +211,15 @@ function render(report) {
   }
   $('wave').hidden=!report.data;
   if(report.data){
+    waveZoom=1;$('pan').value=0;$('traces').replaceChildren();
+    const preferred=['v(a)','v(b)','v(c)','v(s)','v(clk)','v(d)','v(vin)','v(in)','v(out)','v(vout)','v(q)'];
+    report.data.columns.map((column,index)=>({column,index})).filter(({column})=>preferred.includes(column.name.toLowerCase()))
+      .sort((a,b)=>preferred.indexOf(a.column.name.toLowerCase())-preferred.indexOf(b.column.name.toLowerCase())).forEach(({column,index})=>{
+      const label=document.createElement('label');label.className='inline-choice';label.dataset.noTranslate='';
+      const input=document.createElement('input');input.type='checkbox';input.checked=true;input.value=index;input.onchange=plot;
+      const swatch=document.createElement('span');swatch.className='trace-swatch';swatch.style.background=traceColors[index%traceColors.length];
+      label.append(input,swatch,document.createTextNode(column.name));$('traces').append(label);
+    });
     $('vector').replaceChildren();$('values').replaceChildren();
     report.data.columns.forEach((column,index)=>{
       const option=document.createElement('option');option.value=index;option.textContent=column.name;$('vector').append(option);
@@ -139,24 +228,79 @@ function render(report) {
     });
     $('vector').value=String(Math.max(0,report.data.columns.findIndex(c=>c.name==='v(vout)')));
     $('mode').value=report.data.complex?'magnitude':'real';plot();
+    $('wave').scrollIntoView({block:'start'});
   }
+}
+const traceColors=['#2563eb','#d97706','#0891b2','#9333ea','#dc2626','#059669'];
+let waveZoom=1, waveCursor=null;
+function engineering(value,unit=''){
+  if(!Number.isFinite(value))return '—';
+  const abs=Math.abs(value);
+  const prefixes=[[1e9,'G'],[1e6,'M'],[1e3,'k'],[1,''],[1e-3,'m'],[1e-6,'µ'],[1e-9,'n'],[1e-12,'p'],[1e-15,'f']];
+  const [scale,prefix]=abs===0?[1,'']:prefixes.find(([n])=>abs>=n)||[1e-15,'f'];
+  return Number((value/scale).toPrecision(4))+' '+prefix+unit;
 }
 function plot() {
   if(!result?.data)return;
-  const data=result.data,column=data.columns[Number($('vector').value)],mode=$('mode').value;
-  const values=column.real.map((r,i)=>mode==='phase'?Math.atan2(column.imag[i],r)*180/Math.PI:mode==='magnitude'?Math.hypot(r,column.imag[i]):r);
-  const analysisType=result.analysis?.type||circuit.analysis.type;
-  const op=analysisType==='op';const xs=op?values.map((_,i)=>i):data.columns[0].real;
-  const axis=xs.map(x=>analysisType==='ac'?Math.log10(x):x);
-  const xmin=Math.min(...axis),xmax=Math.max(...axis),ymin=Math.min(...values),ymax=Math.max(...values);
-  const target=$('plot');target.replaceChildren();target.setAttribute('viewBox','0 0 900 300');
-  svg(target,'path',{d:'M 75 20 V 260 H 870',fill:'none',stroke:'#52677e'});
-  const coords=values.map((y,i)=>[75+(axis[i]-xmin)/(xmax-xmin||1)*795,260-(y-ymin)/(ymax-ymin||1)*230]);
-  svg(target,'polyline',{points:coords.map(x=>x.join(',')).join(' '),fill:'none',stroke:'#69b7ff','stroke-width':2});
-  if(coords.length===1)svg(target,'circle',{cx:coords[0][0],cy:coords[0][1],r:4,fill:'#69b7ff'});
-  for(const [x,y,t] of [[5,25,ymax.toPrecision(4)],[5,260,ymin.toPrecision(4)],[75,285,String(xs[0])],[790,285,String(xs.at(-1))]]) svg(target,'text',{x,y,fill:'#b8c8d8','font-size':12},t);
-  $('range').textContent=`${column.name} · ${mode==='phase'?'degrees':column.unit} · ${data.sample_count} samples (${data.returned_samples} 표시) · X: ${op?'동작점':data.columns[0].name}${analysisType==='ac'?' / log10':''}`;
+  const data=result.data,mode=$('mode').value,analysisType=result.analysis?.type||circuit.analysis.type;
+  const op=analysisType==='op',xs=op?data.columns[0].real.map((_,i)=>i):data.columns[0].real;
+  const axis=xs.map(x=>analysisType==='ac'?Math.log10(x):x),total=axis.length;
+  let selected=$('multi').checked?Array.from($('traces').querySelectorAll('input:checked')).map(input=>Number(input.value)):[];
+  if(!selected.length)selected=[Number($('vector').value)];
+  $('traces').hidden=!$('multi').checked;
+  const fullMin=axis[0],fullMax=axis.at(-1),span=(fullMax-fullMin)/waveZoom;
+  const xmin=fullMin+(fullMax-fullMin-span)*Number($('pan').value)/100,xmax=xmin+span;
+  const visible=axis.map((x,i)=>i).filter(i=>axis[i]>=xmin&&axis[i]<=xmax);
+  const first=visible[0]??0,last=visible.at(-1)??total-1;
+  $('pan').disabled=waveZoom===1||op;$('zoom-in').disabled=op||waveZoom>=32;$('zoom-out').disabled=op||waveZoom===1;
+  const target=$('plot');target.replaceChildren();const height=selected.length*150+44;
+  target.setAttribute('viewBox',`0 0 960 ${height}`);
+  const xcoord=x=>100+(x-xmin)/(xmax-xmin||1)*825;
+  const xUnit=analysisType==='tran'?'s':analysisType==='ac'?'Hz':data.columns[0].unit==='current'?'A':'V';
+  for(let tick=0;tick<=5;tick++){
+    const x=100+825*tick/5,scaled=xmin+(xmax-xmin)*tick/5,value=analysisType==='ac'?10**scaled:scaled;
+    svg(target,'line',{x1:x,x2:x,y1:12,y2:height-36,stroke:'var(--edge)','stroke-dasharray':'3 5'});
+    svg(target,'text',{x,y:height-12,fill:'var(--dim)','text-anchor':'middle','font-size':12},op?'OP':engineering(value,xUnit));
+  }
+  const traces=[];
+  selected.forEach((index,lane)=>{
+    const column=data.columns[index];
+    const values=column.real.map((r,i)=>mode==='phase'?Math.atan2(column.imag[i],r)*180/Math.PI:mode==='magnitude'?Math.hypot(r,column.imag[i]):r);
+    const shown=visible.map(i=>values[i]);
+    let ymin=Math.min(...shown),ymax=Math.max(...shown);if(!shown.length){ymin=0;ymax=1;}
+    const pad=(ymax-ymin)*.08||Math.max(Math.abs(ymax)*.05,.05);ymin-=pad;ymax+=pad;
+    const top=lane*150+35,bottom=lane*150+132,color=traceColors[index%traceColors.length];
+    const unit=mode==='phase'?'°':column.unit==='voltage'?'V':column.unit==='current'?'A':column.unit;
+    svg(target,'text',{x:100,y:lane*150+20,fill:'var(--ink)','font-size':14,'font-weight':600},column.name);
+    for(const fraction of [0,.5,1]){
+      const y=bottom-fraction*(bottom-top),v=ymin+fraction*(ymax-ymin);
+      svg(target,'line',{x1:100,x2:925,y1:y,y2:y,stroke:'var(--edge)'});
+      svg(target,'text',{x:88,y:y+4,fill:'var(--dim)','text-anchor':'end','font-size':12},engineering(v,unit));
+    }
+    const coords=visible.map(i=>[xcoord(axis[i]),bottom-(values[i]-ymin)/(ymax-ymin)*(bottom-top)]);
+    svg(target,'polyline',{points:coords.map(p=>p.join(',')).join(' '),fill:'none',stroke:color,'stroke-width':2,'data-trace':column.name});
+    if(coords.length===1)svg(target,'circle',{cx:coords[0][0],cy:coords[0][1],r:4,fill:color});
+    traces.push({column,values,unit});
+  });
+  const cursor=svg(target,'line',{x1:100,x2:100,y1:12,y2:height-36,stroke:'var(--ink)','stroke-width':1,'stroke-dasharray':'5 4'});
+  const probe=$('cursor');probe.min=first;probe.max=last;probe.value=Math.min(last,Math.max(first,Number(probe.value)));
+  function inspect(index){
+    probe.value=index;const x=xcoord(axis[index]);cursor.setAttribute('x1',x);cursor.setAttribute('x2',x);
+    $('probe').textContent=(op?'OP':engineering(xs[index],xUnit))+' · '+traces.map(t=>t.column.name+' = '+engineering(t.values[index],t.unit)).join(' · ');
+  }
+  waveCursor=inspect;inspect(Number(probe.value));
+  target.onpointermove=event=>{
+    const bounds=target.getBoundingClientRect(),x=(event.clientX-bounds.left)/bounds.width*960;
+    const value=xmin+Math.min(1,Math.max(0,(x-100)/825))*(xmax-xmin);
+    let nearest=first;for(const index of visible)if(Math.abs(axis[index]-value)<Math.abs(axis[nearest]-value))nearest=index;
+    inspect(nearest);
+  };
+  $('range').textContent=`${data.sample_count} samples · ${data.returned_samples} displayed · ${selected.length} traces · ${waveZoom}× · X: ${op?'OP':data.columns[0].name}${analysisType==='ac'?' / log10':''}`;
 }
+$('multi').onchange=plot;$('pan').oninput=plot;$('cursor').oninput=()=>waveCursor?.(Number($('cursor').value));
+$('zoom-in').onclick=()=>{waveZoom=Math.min(32,waveZoom*2);plot();};
+$('zoom-out').onclick=()=>{waveZoom=Math.max(1,waveZoom/2);plot();};
+$('zoom-reset').onclick=()=>{waveZoom=1;$('pan').value=0;plot();};
 button.onclick=()=>panel.showModal();$('close').onclick=()=>panel.close();
 $('profile').onchange=()=>{circuit.model_profile=$('profile').value;changed();};
 $('pdk-example').onclick=()=>{

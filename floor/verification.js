@@ -166,7 +166,7 @@ $('run').onsubmit = async event => {
     $('checks').replaceChildren();
     for (const item of report.signoff.checklist) {
       const kind = item.check, check = report[kind] || item, row = document.createElement('tr');
-      const details = check.reason || (kind === 'lvs' ? `${check.circuits.length}개 회로 비교` : `${check.violations}개 위반`);
+      const details = check.reason || (kind === 'pex' ? `R: ${check.resistors} · C: ${check.capacitors}` : kind === 'antenna' ? `${check.feedback_count}개 피드백` : kind === 'lvs' ? `${check.circuits.length}개 회로 비교` : `${check.violations}개 위반`);
       for (const value of [kind.toUpperCase(), labels[check.status] || check.status, details]) {
         const td = document.createElement('td'); td.textContent = value; row.appendChild(td);
       }
