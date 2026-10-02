@@ -52,6 +52,8 @@ def test_settings_upload_export_and_project_rule_result(tmp_path, monkeypatch):
         page.locator("#verify-open").click()
         playwright.expect(page.locator("#verify-settingsFile")).to_be_hidden()
         playwright.expect(page.locator("#verify-deckState")).to_contain_text("준비됨")
+        playwright.expect(page.locator("#verify-go")).to_be_disabled()
+        playwright.expect(page.locator("#verify-readiness")).to_contain_text("SPICE 없음")
         fixture = root / ".tools/sky130-fixture"
         page.locator("#verify-gds").set_input_files(fixture / "sky130_fd_sc_hd__inv_1.gds")
         playwright.expect(page.locator("#verify-top")).to_have_value("sky130_fd_sc_hd__inv_1")
@@ -81,6 +83,45 @@ def test_settings_upload_export_and_project_rule_result(tmp_path, monkeypatch):
         playwright.expect(page.locator("#verify-gate")).to_contain_text("준비 완료", timeout=60000)
         passed = json.loads(page.locator("#verify-detail").text_content())
         assert passed["project_rules"]["status"] == "pass"
+        playwright.expect(page.locator('#verify-summary article[data-status="pass"]')).to_have_count(2)
+        playwright.expect(page.locator('#verify-circuits')).to_contain_text('Match')
+        playwright.expect(page.locator('#verify-provenance')).to_contain_text(passed['inputs']['gds']['sha256'])
+        playwright.expect(page.locator('#verify-stale')).to_be_hidden()
+        # Real geometry and netlist errors must be actionable outside the raw JSON.
+        import klayout.db as db
+        layout = db.Layout()
+        layout.read(str(fixture / 'sky130_fd_sc_hd__inv_1.gds'))
+        layout.top_cell().shapes(layout.layer(68, 20)).insert(db.DBox(10, 10, 10.05, 11))
+        bad_gds = tmp_path / 'narrow.gds'
+        layout.write(str(bad_gds))
+        bad_spice = tmp_path / 'wrong.spice'
+        source = (fixture / 'sky130_fd_sc_hd__inv_1.spice').read_text()
+        assert '650000u' in source
+        bad_spice.write_text(source.replace('650000u', '750000u'))
+        page.locator('#verify-gds').set_input_files(bad_gds)
+        playwright.expect(page.locator('#verify-stale')).to_be_visible()
+        page.locator('#verify-spice').set_input_files(bad_spice)
+        page.locator('#verify-go').click()
+        playwright.expect(page.locator('#verify-summary article[data-status="fail"]')).to_have_count(2, timeout=60000)
+        playwright.expect(page.locator('#verify-stale')).to_be_hidden()
+        assert page.locator('#verify-markers tr').count() > 0
+        playwright.expect(page.locator('#verify-markers')).to_contain_text('10')
+        page.locator('#verify-markerFilter').fill('no-such-rule')
+        playwright.expect(page.locator('#verify-markers tr')).to_have_count(0)
+        page.locator('#verify-markerFilter').fill('10')
+        assert page.locator('#verify-markers tr').count() > 0
+        page.locator('#verification-panel [data-ui-language]').select_option('en')
+        playwright.expect(page.locator('#verify-markerCount')).to_contain_text('Total violations')
+        playwright.expect(page.locator('#verify-summary')).to_contain_text('fix the layout')
+        page.locator('#verification-panel [data-ui-language]').select_option('ko')
+        # DRC-only runs remain explicitly blocked by the missing LVS reference.
+        page.locator('#verify-gds').set_input_files(fixture / 'sky130_fd_sc_hd__inv_1.gds')
+        page.locator('#verify-spice').set_input_files([])
+        playwright.expect(page.locator('#verify-readiness')).to_contain_text('SPICE 없음')
+        page.locator('#verify-go').click()
+        playwright.expect(page.locator('#verify-summary article[data-status="not_run"]')).to_have_count(1, timeout=60000)
+        playwright.expect(page.locator('#verify-gate')).to_contain_text('lvs')
+        playwright.expect(page.locator('#verify-circuits')).to_contain_text('비교된 회로가 없습니다')
         page.screenshot(path=str(tmp_path / "verification-desktop.png"), full_page=True)
         original_url = page.url
         page.locator("#verify-close").click()
@@ -91,6 +132,7 @@ def test_settings_upload_export_and_project_rule_result(tmp_path, monkeypatch):
         playwright.expect(page.locator("#verify-top")).to_have_value("sky130_fd_sc_hd__inv_1")
         page.set_viewport_size({"width": 390, "height": 844})
         assert page.evaluate("document.getElementById('verification-panel').getBoundingClientRect().right <= window.innerWidth")
+        assert page.locator('#verification-panel').evaluate('(el) => el.scrollWidth <= el.clientWidth')
         page.reload()
         page.locator("#verify-open").click()
         playwright.expect(page.locator("#verify-settingsState")).to_contain_text("복원")

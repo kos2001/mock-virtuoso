@@ -54,10 +54,10 @@ def test_language_examples_and_waveform_controls(tmp_path,monkeypatch):
             assert page.locator('#circuit-panel').evaluate('e=>e.scrollWidth<=e.clientWidth')
             page.locator('#circuit-close').click()
             page.locator('#verify-open').click()
-            playwright.expect(page.locator('#verify-title')).to_have_text('PDK · Rules · Verification')
+            playwright.expect(page.locator('#verify-title')).to_have_text('DRC / LVS · Physical verification')
             page.locator('#verify-top').fill('my_cell_01')
             page.locator('#verification-panel [data-ui-language]').select_option('ko')
-            playwright.expect(page.locator('#verify-title')).to_have_text('PDK · 규칙 · 검증')
+            playwright.expect(page.locator('#verify-title')).to_have_text('DRC / LVS · 물리 검증')
             assert page.locator('#verify-top').input_value()=='my_cell_01'
             page.locator('#verification-panel [data-ui-language]').select_option('en')
             page.reload()

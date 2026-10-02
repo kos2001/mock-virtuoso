@@ -800,7 +800,81 @@
 ];
   pairs.push(['여러 신호 함께','Multiple signals'],['표시할 신호','Signals to display'],['확대 +','Zoom in +'],['축소 −','Zoom out −'],['전체 보기','Fit all'],['시간축 이동','Pan axis'],['측정 커서','Measurement cursor'],['신호별 마지막 값','Last value by signal']);
   pairs.push(['레이아웃 셀','Layout cell']);
+  pairs.push(
+    ['DRC / LVS · 물리 검증','DRC / LVS · Physical verification'],
+    ['DRC · 설계 규칙','DRC · Design rules'],
+    ['LVS · 회로 일치','LVS · Circuit equivalence'],
+    ['GDS 형상을 PDK rule deck으로 검사합니다. FEOL·BEOL·off-grid·floating metal 검사를 활성화합니다.','Check GDS geometry against the PDK rule deck with FEOL, BEOL, off-grid and floating-metal checks enabled.'],
+    ['확인 → 위반 위치 수정 → GDS 재검사','Inspect → fix violation locations → recheck GDS'],
+    ['GDS에서 추출한 소자·연결을 기준 SPICE와 비교합니다. 셀 이름·핀·기판 net·소자 치수 단위를 확인하세요.','Compare devices and connections extracted from GDS against reference SPICE. Check cell names, pins, substrate net and device dimension units.'],
+    ['GDS + 기준 SPICE → 추출 회로 비교','GDS + reference SPICE → compare extracted circuits'],
+    ['Drawing의 선택 셀이 자동으로 검사되지는 않습니다. 아래에 업로드한 GDS와 SPICE가 검사 대상입니다.','Verification uses the GDS and SPICE uploaded below. Selecting a cell in Drawing does not select its verification inputs.'],
+    ['실행 전 확인','Before running'],
+    ['Deck 설치 여부는 엔진 실행 성공을 보장하지 않습니다. 실제 실행 결과를 확인하세요.','An installed deck does not guarantee a successful engine run. Check the actual results.'],
+    ['DRC / LVS 검사 실행','Run DRC / LVS'],
+    ['DRC / LVS 핵심 결과','DRC / LVS summary'],
+    ['입력이 변경되었습니다. 아래 결과는 이전 실행 기록입니다. 현재 입력으로 다시 검사하세요.','Inputs changed. The results below belong to an earlier run. Rerun verification with the current inputs.'],
+    ['DRC 위반 위치','DRC violation locations'],
+    ['규칙·셀·좌표 검색','Search rules, cells or coordinates'],
+    ['예: met1, sky130, 10.05','Example: met1, sky130, 10.05'],
+    ['규칙','Rule'],['셀','Cell'],['위치 / 형상 (µm)','Location / geometry (µm)'],
+    ['LVS 회로 비교','LVS circuit comparison'],
+    ['불일치 시 핀·전원·기판 연결, 소자 모델과 W/L을 확인하세요. 상세 net·소자 비교는 ZIP의 lvs.lvsdb를 KLayout에서 여세요.','For mismatches, check pins, supply and substrate connections, device models and W/L. Open lvs.lvsdb from the ZIP in KLayout for detailed net and device comparisons.'],
+    ['레이아웃 회로','Layout circuit'],['기준 회로','Reference circuit'],['비교 상태','Comparison status'],
+    ['실행 조건 · 입력 및 rule deck SHA-256','Run settings · input and rule deck SHA-256'],
+    ['보고서는 실행 시점의 입력에만 적용됩니다. ZIP에는 입력 사본·deck·로그·원본 결과 DB가 포함됩니다.','Reports apply only to the inputs at run time. The ZIP includes input snapshots, decks, logs and native result databases.'],
+    ['GDS와 최상위 셀','GDS and top cell'],['GDS를 선택하고 최상위 셀을 확인하세요.','Select GDS and confirm the top cell.'],
+    ['DRC deck 설치가 필요합니다.','Install the DRC deck.'],['LVS deck 설치가 필요합니다.','Install the LVS deck.'],
+    ['LVS 기준 SPICE','LVS reference SPICE'],
+    ['SPICE 없음: DRC만 실행되며 LVS는 미실행, 검토는 보류됩니다.','No SPICE: DRC runs, LVS is not run, and review remains blocked.'],
+    ['준비됨','Ready'],['전체 위반','Total violations'],['보고서 위치','Reported locations'],['검색 결과','Search matches'],['표시','Displayed'],['추출 소자','Extracted devices'],
+    ['일부 위치만 표시합니다. 전체 결과는 ZIP의 drc.lyrdb에서 확인하세요.','Only some locations are displayed. See drc.lyrdb in the ZIP for the full results.'],
+    ['DRC 위반이 없습니다.','No DRC violations.'],
+    ['표시할 위치가 없습니다. 검사 상태와 실행 로그를 확인하세요.','No locations to display. Check the status and engine log.'],
+    ['업로드한 GDS가 실행한 DRC deck을 통과했습니다.','The uploaded GDS passed the executed DRC deck.'],
+    ['아래 규칙과 위치를 확인하고 레이아웃을 수정한 뒤 GDS를 다시 업로드하세요.','Review the rules and locations below, fix the layout and upload the revised GDS.'],
+    ['ZIP의 drc.log에서 deck·입력·엔진 실행 오류를 확인하세요.','Check drc.log in the ZIP for deck, input or engine errors.'],
+    ['DRC 입력과 deck을 준비한 뒤 다시 실행하세요.','Prepare DRC inputs and deck, then rerun.'],
+    ['추출 소자가 있고 모든 회로 비교가 일치합니다.','Devices were extracted and all circuit comparisons match.'],
+    ['핀·전원·기판 net과 소자 모델·W/L을 확인하고 다시 비교하세요.','Check pins, supply and substrate nets, device models and W/L, then compare again.'],
+    ['ZIP의 lvs.log에서 SPICE 구문·모델·엔진 실행 오류를 확인하세요.','Check lvs.log in the ZIP for SPICE syntax, model or engine errors.'],
+    ['기준 SPICE를 추가해야 LVS를 실행할 수 있습니다.','Add reference SPICE to run LVS.'],
+    ['비교된 회로가 없습니다. LVS 상태를 확인하세요.','No circuits were compared. Check the LVS status.']
+  );
   const lookup=new Map();
+  pairs.push(
+    ['설계 검증 대시보드','Design verification dashboard'],
+    ['회로 검증과 업로드한 레이아웃 검증은 각각의 입력에 대한 결과입니다. PEX 비교는 같은 검증 실행의 기준 SPICE와 추출 회로를 연결합니다.','Circuit and uploaded-layout checks apply to their own inputs. PEX comparison links the reference SPICE and extracted circuit from the same verification run.'],
+    ['대상 / 근거','Target / evidence'],
+    ['공정 ERC·STA·DFF setup/hold·Monte Carlo·IR/EM·공인 sign-off는 이 검증에 포함되지 않습니다.','Process ERC, STA, DFF setup/hold, Monte Carlo, IR/EM and foundry sign-off are outside this review.'],
+    ['기능 · PVT · 지연 / 전력 · PEX 비교','Function · PVT · timing / power · PEX comparison'],
+    ['현재 회로의 입력 소스를 모든 논리 조합으로 구동합니다. 전압마다 입력 high도 함께 변경합니다. 한 번에 최대 30개 PVT 조합, PEX 비교는 최대 15개 조합입니다.','Drive the current circuit through all logic combinations, scaling input high with supply voltage. Up to 30 PVT combinations, or 15 for paired PEX comparison.'],
+    ['기대 논리','Expected logic'],['입력 소스 순서','Input source order'],['전원 소스','Supply source'],['출력 net','Output net'],
+    ['입력 순서는 A,B,C입니다. MUX2는 A,B,S이며 S=1일 때 B를 선택합니다.','Input order is A,B,C. For MUX2 use A,B,S; S=1 selects B.'],
+    ['PVT 온도 (°C)','PVT temperature (°C)'],['PVT 전압 (V)','PVT voltage (V)'],['TT / FF / SS 프리셋','TT / FF / SS preset'],
+    ['입력 조합 유지 (ns)','Vector hold time (ns)'],['입력 edge (ns)','Input edge (ns)'],
+    ['최대 지연 (ns)','Maximum delay (ns)'],['최대 전이 (ns)','Maximum transition (ns)'],['최대 평균 전력 (µW)','Maximum average power (µW)'],
+    ['기본 허용값은 학습용입니다. 프로젝트 사양으로 바꾸세요. 논리는 조합 중앙에서 20%/80% 기준으로 판정합니다. 지연은 관측한 단일 입력 전이의 50% 교차, 출력 전이는 10–90%입니다. 평균 전력은 원본 샘플의 시간 적분값입니다.','Default limits are educational; enter your project specifications. Logic is sampled at vector midpoints using 20%/80% thresholds. Delay uses 50% crossings of observed single-input transitions; output transition is 10–90%. Power is integrated over the full raw waveform.'],
+    ['기능 / PVT 검증 실행','Run function / PVT review'],['검증 JSON 저장','Export review JSON'],
+    ['동일 조건으로 PEX 전후 비교','Compare pre/post PEX under identical conditions'],
+    ['LVS·PEX가 통과한 실행 ID와 모든 핀 연결을 지정하세요. 편집기의 전원·입력·RLC 부하만 사용하며, 소자 회로는 해당 실행의 기준 SPICE와 PEX에서 가져옵니다.','Provide a run with passing LVS/PEX and map every port. Only sources and RLC loads come from the editor; devices come from that run’s reference SPICE and PEX.'],
+    ['PEX 비교 실행 ID','PEX comparison run ID'],['PEX 핀 연결 JSON','PEX port mapping JSON'],['PEX 전후 비교 실행','Run pre/post PEX comparison'],
+    ['현재 비교는 flat SKY130 1.8 V X/R/C 회로를 지원합니다. 측정한 전이만 평가하며 전체 timing arc·Liberty 특성화를 대신하지 않습니다.','Comparison supports flat SKY130 1.8 V X/R/C circuits. Only observed transitions are evaluated; this is not full timing-arc or Liberty characterization.'],
+    ['검증 전입니다.','Review has not run.'],
+    ['입력 또는 조건이 변경되었습니다. 이전 결과이므로 재검사하세요.','Inputs or conditions changed. These results are stale; rerun review.'],
+    ['기능','Function'],['평균 전력 (µW)','Average power (µW)'],['판정','Verdict'],['파형 / 진리표','Waveform / truth table'],
+    ['입력 조합','Input vector'],['기대 출력','Expected output'],['실제 출력 (V)','Measured output (V)'],
+    ['PEX 비교표의 값은 기준 → 추출 (차이)입니다.','PEX comparison values are reference → extracted (difference).'],
+    ['지연 (ns)','Delay (ns)'],['전이 (ns)','Transition (ns)'],['전력 (µW)','Power (µW)'],
+    ['실패','Failed'],['미지원','Unsupported'],['재검사 필요','Rerun required'],
+    ['논리 기능 / PVT','Logic function / PVT'],['관측 전이 지연 / PVT','Observed transition delay / PVT'],['평균 전력 / PVT','Average power / PVT'],
+    ['회로 검증 실행 필요','Run circuit review'],['레이아웃 검증 실행 필요','Run layout verification'],
+    ['PEX 전후 비교','Pre/post PEX comparison'],['동일 검증 실행의 LVS / PEX 필요','LVS / PEX from the same verification run required'],
+    ['공정 ERC / STA / IR·EM / DFF / Monte Carlo','Process ERC / STA / IR·EM / DFF / Monte Carlo'],
+    ['별도 도구·모델·검증 흐름 필요','Additional tools, models and verification flow required'],
+    ['기준','Reference'],['추출','Extracted'],
+    ['검증 실행 중… 전체 파형으로 기능·지연·전력을 측정합니다.','Review running… measuring function, delay and power using full waveforms.']
+  );
   const normalize=value=>value.trim().replace(/\s+/g,' ');
   for(const pair of pairs)for(const value of pair)lookup.set(normalize(value),pair);
   let lang='ko';try{lang=localStorage.getItem('mv.lang')==='en'?'en':'ko';}catch{}
@@ -808,6 +882,7 @@
   const roots='body>header,#circuit-panel,#verification-panel,main h2,.layout-controls,.ask,.grip,.status,.empty,#lost,#tabs .tab:not([data-key])';
   const excluded='script,style,pre,code,svg,input,textarea,[data-no-translate],#circuit-values,#circuit-netlist,#circuit-log,#verify-detail,.ev,.mv-about-back';
   const formats=[
+    [/^(통과|실패|실행 오류|미실행) · ((?:review|comparison)-[a-f0-9]+)$/,m=>`${({통과:'Passed',실패:'Failed','실행 오류':'Execution error',미실행:'Not run'})[m[1]]} · ${m[2]}`],
     [/^해석 완료 · (.+)s$/,m=>`Simulation complete · ${m[1]}s`],
     [/^실험 (\w+) · (\d+)개 조합$/,m=>`Experiment ${m[1]} · ${m[2]} combinations`],
     [/^(CIRCUITS\/.*\/schematic)에 저장했습니다\.$/,m=>`Saved to ${m[1]}.`],

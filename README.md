@@ -31,6 +31,20 @@ unimplemented and fail with `unknown function`.
 
 ## Install
 
+### Agents using the SKILL bridge
+
+Start with [AGENTS.md](AGENTS.md) and the
+[design-floor skill](skills/design-floor/SKILL.md). The
+[bridge workflow](skills/design-floor/references/bridge-workflow.md) maps
+mock versus real Cadence APIs, safe retries, JSON result decoding and DRC/LVS
+evidence. On a known mock endpoint, `mockCapabilities()` returns the installed
+callable names and limitations; `mockInspectCell("LIB" "CELL" "layout")`
+returns counts, layers, bbox and presence without opening or creating a cell.
+Both return JSON strings and are mock-only extensions. Restart an older daemon
+with its existing data restoration procedure before using newly added functions.
+
+### Python environment
+
 ```bash
 uv venv .venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
@@ -187,6 +201,81 @@ The floor also discovers an unpacked Windows executable under `.tools/klayout`.
 Set `SKY130_DECKS` to override the floor's default `.tools/sky130` deck directory.
 Open the panel from the existing Design Floor at `http://127.0.0.1:8900`.
 It uses the same page and server; closing it preserves the design view and verification inputs.
+
+### Functional / PVT review and pre/post-layout comparison
+
+In **Circuit · Simulation**, load a standard-cell example and open
+**Function · PVT · timing / power · PEX comparison**. Select the expected logic,
+input voltage-source IDs in A/B/C order (A/B/S for MUX2), supply source and output
+node. Set corners, temperatures, supply voltages and project acceptance limits.
+The review regenerates ground-referenced input pulses, scales their high level
+with VDD, and keeps the editor's device sizing and RLC loads. Generic models
+support temperature/voltage studies but only the `tt` placeholder corner;
+process corners require installed SKY130 models.
+
+- All input combinations are sampled at vector midpoints, with low/high limits
+  at 20%/80% of supply. Incorrect input stimulus also fails the truth table.
+- Delay uses interpolated 50% crossings on observed single-input transitions.
+  Output rise/fall uses 10–90% crossings. Multi-input transitions are excluded
+  from timing; this does not cover all timing arcs or generate Liberty.
+- Supply power uses `-VDD * I(VDD)` integrated over one complete input cycle
+  using the full adaptive raw samples, not the downsampled plot or an arithmetic
+  sample average. It is stimulus-dependent supply power, not total system power.
+- The table retains each PVT combination, measured values, bounds, verdict,
+  waveform and truth table. Limits default to educational examples; set the
+  actual project specifications. Plans are bounded to 30 simulations.
+- **Pre/post PEX comparison** requires a completed verification run with passing
+  LVS and PEX plus an exact mapping of all reference/extracted ports. It uses
+  that run's snapshotted reference SPICE and RC-extracted circuit with identical
+  sources, loads, PVT and criteria. Editor transistors are excluded. Reference
+  SHA-256 and extraction/layout identity are checked before simulation. The
+  adapter supports flat numeric SKY130 1.8 V nfet/pfet/pfet_hvt X/R/C netlists;
+  unsupported models, hierarchy or executable SPICE directives are rejected.
+  Paired comparisons allow up to 15 combinations (30 simulations).
+
+The **Design verification dashboard** distinguishes pass, fail, execution error,
+not run, unsupported and stale results. Circuit and physical results retain
+separate scopes; unrelated green checks are never combined into a sign-off claim.
+Input/condition changes mark affected results stale. JSON exports include status,
+provenance and raw-run references; results persist under
+`simulation-runs/review-*/` and `simulation-runs/comparison-*/`.
+Process ERC, block STA, DFF setup/hold, Monte Carlo, IR/EM and foundry-certified
+sign-off remain outside this review. These checks require their own tools,
+qualified models, constraints and coverage.
+
+### DRC / LVS review workflow
+
+The [versioned SKY130 layout bundle](examples/sky130/README.md) contains all
+12 Drawing examples as original GDS/reference SPICE, with SVG previews,
+upstream source hashes and the original Apache-2.0 license. They can be opened
+directly from a clone; startup prefers this bundle over the optional local cache.
+
+The **DRC / LVS** panel puts both checks first, with separate status cards and
+an input checklist. It checks the **uploaded GDS and reference SPICE**, not the
+cell currently selected in Drawing. For the imported standard-cell examples,
+choose the corresponding `.gds` and `.spice` in `.tools/standard-cells`.
+
+1. Select GDS, confirm the exact top cell and installed SKY130 decks.
+2. Add self-contained reference SPICE for LVS. Confirm pins, substrate net
+   (for example `VNB`) and device dimension units. Without SPICE, DRC can run,
+   but LVS is **not run** and the review gate stays blocked.
+3. Run verification. DRC checks the enabled FEOL, BEOL, off-grid and floating-metal
+   groups. LVS extracts layout devices and compares circuits against SPICE;
+   an empty extraction/comparison cannot pass.
+4. Review DRC rule names, cell names and marker geometry in the searchable
+   location table. Up to 200 matching markers are shown from the report's
+   first 1,000 markers; counts and truncation are explicit. Inspect the complete
+   `drc.lyrdb` from the evidence ZIP in KLayout when needed.
+5. Review LVS circuit pairs and native match statuses. For mismatch details,
+   open `lvs.lvsdb` in KLayout and check pins, supply/substrate connections,
+   device models and W/L. Engine errors point to `drc.log` or `lvs.log`.
+6. Fix the design and upload the revised files, then rerun. Changing inputs or
+   settings marks the previous result as stale. Inspect run settings and input/deck
+   SHA-256 hashes or download the evidence ZIP to retain exactly what was checked.
+
+**Pass, violations/mismatch, engine error and not run are distinct states.**
+DRC/LVS pass does not override failed project constraints or other required
+checks. Review readiness remains separate from foundry-certified sign-off.
 
 For batch use:
 
@@ -514,7 +603,7 @@ a recording proxy standing where the daemon's port would be — and drives it wi
 shipped CLI, unmodified:
 
 ```bash
-virtuoso-bridge eval --env floor/lanes.env -p cells '<SKILL>'
+echo 'mockCapabilities()' | python tools/floor_skill.py --env floor/lanes.env -p cells --stdin
 ```
 
 `lanes.env` is generated at startup and simply points each bridge profile at its

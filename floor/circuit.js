@@ -93,6 +93,11 @@ panel.innerHTML = `
 <div class="bar circuit-heading"><h1 id="circuit-title">회로 편집 · ERC · ngspice</h1><button id="circuit-close" type="button" style="margin-left:auto">닫기</button></div>
 <p class="muted">소자의 net 이름으로 연결합니다. 접지는 0, 값은 SI 단위입니다(1 kΩ = 1000, 1 µF = 1e-6). 범용 모델과 SKY130 모델을 선택할 수 있습니다.</p>
 <p id="circuit-engine" role="status">시뮬레이터 확인 중…</p>
+<details id="circuit-dashboard" open><summary>설계 검증 대시보드</summary>
+<p>회로 검증과 업로드한 레이아웃 검증은 각각의 입력에 대한 결과입니다. PEX 비교는 같은 검증 실행의 기준 SPICE와 추출 회로를 연결합니다.</p>
+<div class="scroll"><table><thead><tr><th>검사</th><th>상태</th><th>대상 / 근거</th></tr></thead><tbody id="circuit-dashboard-rows"></tbody></table></div>
+<p>공정 ERC·STA·DFF setup/hold·Monte Carlo·IR/EM·공인 sign-off는 이 검증에 포함되지 않습니다.</p>
+</details>
 <div class="bar"><button id="circuit-save">설계 DB에 저장</button><button id="circuit-load">DB에서 불러오기</button><button id="circuit-import">JSON 가져오기</button><button id="circuit-export">JSON 저장</button><button id="circuit-spice">SPICE 내보내기</button><button id="circuit-example">분압기 예제</button><input id="circuit-file" type="file" accept=".json" hidden></div>
 <p class="muted">DB 저장은 현재 서버의 CIRCUITS 라이브러리에 같은 이름의 회로를 대체합니다. 서버 재시작 후에도 보관하려면 JSON으로 저장하세요.</p>
 <form id="circuit-form"><fieldset><legend>1. 회로와 공정 모델</legend>
@@ -108,6 +113,27 @@ panel.innerHTML = `
 </fieldset><fieldset><legend>3. 해석과 실행</legend><div class="bar"><label>해석<select id="circuit-analysis"><option value="op">동작점 (OP)</option><option value="dc">DC sweep</option><option value="ac">AC 주파수 응답</option><option value="tran">과도해석 (Transient)</option></select></label><div id="circuit-params" class="bar"></div></div>
 <div class="bar"><button id="circuit-check" type="button">ERC / 넷리스트 확인</button><button id="circuit-run" type="submit" class="primary">시뮬레이션 실행</button></div>
 </fieldset></form>
+<details id="circuit-review-panel"><summary>기능 · PVT · 지연 / 전력 · PEX 비교</summary>
+<p>현재 회로의 입력 소스를 모든 논리 조합으로 구동합니다. 전압마다 입력 high도 함께 변경합니다. 한 번에 최대 30개 PVT 조합, PEX 비교는 최대 15개 조합입니다.</p>
+<div class="bar"><label>기대 논리<select id="circuit-review-logic"></select></label><label>입력 소스 순서<input id="circuit-review-inputs" value="VA" placeholder="VA,VB,VS"></label><label>전원 소스<input id="circuit-review-supply" value="VDD"></label><label>출력 net<input id="circuit-review-output" value="vout"></label></div>
+<p>입력 순서는 A,B,C입니다. MUX2는 A,B,S이며 S=1일 때 B를 선택합니다.</p>
+<div class="bar"><label>PVT corners<input id="circuit-review-corners" value="tt"></label><label>PVT 온도 (°C)<input id="circuit-review-temperatures" value="27"></label><label>PVT 전압 (V)<input id="circuit-review-voltages" value="1.8"></label><button id="circuit-review-preset" type="button">TT / FF / SS 프리셋</button></div>
+<div class="bar"><label>입력 조합 유지 (ns)<input id="circuit-review-settle" type="number" value="20" min="1" step="any"></label><label>입력 edge (ns)<input id="circuit-review-slew" type="number" value="0.1" min="0.01" step="any"></label><label>최대 지연 (ns)<input id="circuit-review-delay" type="number" value="2" min="0" step="any"></label><label>최대 전이 (ns)<input id="circuit-review-transition" type="number" value="2" min="0" step="any"></label><label>최대 평균 전력 (µW)<input id="circuit-review-power" type="number" value="100" min="0" step="any"></label></div>
+<p>기본 허용값은 학습용입니다. 프로젝트 사양으로 바꾸세요. 논리는 조합 중앙에서 20%/80% 기준으로 판정합니다. 지연은 관측한 단일 입력 전이의 50% 교차, 출력 전이는 10–90%입니다. 평균 전력은 원본 샘플의 시간 적분값입니다.</p>
+<p id="circuit-review-count" role="status"></p>
+<div class="bar"><button id="circuit-review-run" type="button" class="primary">기능 / PVT 검증 실행</button><button id="circuit-review-export" type="button">검증 JSON 저장</button></div>
+<details><summary>동일 조건으로 PEX 전후 비교</summary>
+<p>LVS·PEX가 통과한 실행 ID와 모든 핀 연결을 지정하세요. 편집기의 전원·입력·RLC 부하만 사용하며, 소자 회로는 해당 실행의 기준 SPICE와 PEX에서 가져옵니다.</p>
+<div class="bar"><label>PEX 비교 실행 ID<input id="circuit-review-layout" size="36"></label><label>PEX 핀 연결 JSON<input id="circuit-review-ports" size="60" value='{"VPB":"vdd","VNB":"0","VGND":"0","VPWR":"vdd","A":"a","Y":"vout"}'></label><button id="circuit-review-compare" type="button">PEX 전후 비교 실행</button></div>
+<p>현재 비교는 flat SKY130 1.8 V X/R/C 회로를 지원합니다. 측정한 전이만 평가하며 전체 timing arc·Liberty 특성화를 대신하지 않습니다.</p>
+</details>
+<p id="circuit-review-state" role="status" aria-live="polite">검증 전입니다.</p>
+<p id="circuit-review-stale" class="bad" hidden>입력 또는 조건이 변경되었습니다. 이전 결과이므로 재검사하세요.</p>
+<div class="scroll"><table><thead><tr><th>PVT</th><th>기능</th><th>최대 지연 (ns)</th><th>최대 전이 (ns)</th><th>평균 전력 (µW)</th><th>판정</th><th>파형 / 진리표</th></tr></thead><tbody id="circuit-review-matrix"></tbody></table></div>
+<div class="scroll"><table><thead><tr><th>입력 조합</th><th>기대 출력</th><th>실제 출력 (V)</th><th>판정</th></tr></thead><tbody id="circuit-review-truth"></tbody></table></div>
+<p>PEX 비교표의 값은 기준 → 추출 (차이)입니다.</p>
+<div class="scroll"><table><thead><tr><th>PVT</th><th>지연 (ns)</th><th>전이 (ns)</th><th>전력 (µW)</th><th>파형 / 진리표</th></tr></thead><tbody id="circuit-review-deltas"></tbody></table></div>
+</details>
 <details><summary>Post-layout · 추출 회로 재시뮬레이션</summary><p>검증 창에서 LVS와 PEX가 통과한 실행 ID를 입력하세요. 위 회로에는 전원·입력 소스와 RLC 부하를 구성하고, 아래에 추출 핀과 testbench net의 연결을 지정합니다.</p>
 <div class="bar"><label>검증 실행 ID<input id="circuit-layout-id" size="36"></label><label>핀 연결 JSON<input id="circuit-ports" size="60" value='{"VPB":"vdd","VNB":"0","VGND":"0","VPWR":"vdd","A":"vin","Y":"vout"}'></label><button id="circuit-postlayout">PEX 회로 실행</button></div></details>
 <details><summary>실험 관리 · corners / 온도 / sweep / 합격 기준</summary>
@@ -130,12 +156,13 @@ document.body.append(panel);
 const $ = id => document.getElementById('circuit-' + id);
 const key = 'mock-virtuoso.circuit.v1';
 let circuit, defaults, result, available = false, busy = false;
+let reviewResult, comparisonResult, physicalResult, reviewStale = false, comparisonStale = false, physicalStale = false;
 const kinds = ['R','C','L','V','I','D','NMOS','PMOS'];
 const cellExamples=standardCellExamples();
 for(const example of cellExamples){const option=document.createElement('option');option.value=example.name;option.textContent=example.name+' · '+example.expression;$('cell-example').append(option);}
 function describeExample(){const ex=cellExamples.find(e=>e.name===$('cell-example').value);$('cell-description').textContent=`${ex.name} · Y = ${ex.expression} · ${ex.inputs.join(', ')} → vout · 1.8 V / 5 fF`;}
 $('cell-example').onchange=describeExample;describeExample();
-$('cell-load').onclick=()=>{const ex=cellExamples.find(e=>e.name===$('cell-example').value);apply(ex.circuit);$('multi').checked=true;$('corners').value='tt';$('temperatures').value='27';$('sweep-device').value='';$('sweep-values').value='';$('measure-signal').value='v(vout)';$('statistic').value='max';$('min').value='1.6';$('max').value='1.9';say('표준 셀 예제를 불러왔습니다. 시뮬레이션 실행 후 입력과 vout 파형을 비교하세요.');};
+$('cell-load').onclick=()=>{const ex=cellExamples.find(e=>e.name===$('cell-example').value);apply(ex.circuit);$('multi').checked=true;$('corners').value='tt';$('temperatures').value='27';$('sweep-device').value='';$('sweep-values').value='';$('measure-signal').value='v(vout)';$('statistic').value='max';$('min').value='1.6';$('max').value='1.9';$('review-logic').value=ex.name;$('review-inputs').value=ex.inputs.map(n=>'V'+n).join(',');reviewChanged();say('표준 셀 예제를 불러왔습니다. 시뮬레이션 실행 후 입력과 vout 파형을 비교하세요.');};
 const ns = 'http://www.w3.org/2000/svg';
 function svg(parent, kind, attrs, text) {
   const node = document.createElementNS(ns, kind);
@@ -153,7 +180,7 @@ async function api(path, data) {
 }
 function say(message) { $('status').textContent=message; }
 function remember() { try {localStorage.setItem(key,JSON.stringify(circuit));} catch {say('브라우저 저장 실패: JSON으로 내보내세요.');} }
-function changed() { remember(); $('results').hidden=true; result=null; diagram(); }
+function changed() { remember(); $('results').hidden=true; result=null; diagram(); reviewChanged(); }
 function field(row, label, value, change, numeric=false) {
   const wrap=document.createElement('label'); wrap.textContent=label;
   const input=document.createElement('input'); input.value=value; input.required=true;
@@ -314,6 +341,83 @@ $('pdk-example').onclick=()=>{
 };
 $('corner').onchange=()=>{circuit.corner=$('corner').value;changed();};
 let experimentResult;
+const reviewLabels={pass:'통과',fail:'실패',error:'실행 오류',not_run:'미실행',unsupported:'미지원',stale:'재검사 필요'};
+for(const ex of cellExamples){const option=document.createElement('option');option.value=ex.name;option.textContent=ex.name;$('review-logic').append(option);}
+function reviewCell(row, value, raw=false){const td=document.createElement('td');td.textContent=value;if(raw)td.dataset.noTranslate='';row.append(td);return td;}
+function dashboard(){
+  $('dashboard-rows').replaceChildren();
+  const entries=['functional','timing','power'].map((key,i)=>[
+    ['논리 기능 / PVT','관측 전이 지연 / PVT','평균 전력 / PVT'][i],reviewStale?'stale':reviewResult?.checks[key]||'not_run',reviewResult?.run_id||'회로 검증 실행 필요']);
+  for(const key of ['drc','lvs','pex','antenna','density'])entries.push([key.toUpperCase(),physicalStale?'stale':physicalResult?.[key]?.status||'not_run',physicalResult?.run_id||'레이아웃 검증 실행 필요']);
+  entries.push(['PEX 전후 비교',comparisonStale?'stale':comparisonResult?.status||'not_run',comparisonResult?.verification_run_id||'동일 검증 실행의 LVS / PEX 필요']);
+  entries.push(['공정 ERC / STA / IR·EM / DFF / Monte Carlo','unsupported','별도 도구·모델·검증 흐름 필요']);
+  for(const [name,status,evidence] of entries){const row=document.createElement('tr');reviewCell(row,name);const state=reviewCell(row,reviewLabels[status]||status);state.className=status==='pass'?'good':status==='not_run'||status==='unsupported'?'muted':'bad';reviewCell(row,evidence,/^[a-z0-9-]{32,}$/.test(evidence));$('dashboard-rows').append(row);}
+}
+function reviewChanged(){
+  if(reviewResult)reviewStale=true;if(comparisonResult)comparisonStale=true;
+  $('review-stale').hidden=!(reviewStale||comparisonStale);
+  const count=['corners','temperatures','voltages'].map(k=>$('review-'+k).value.split(',').filter(v=>v.trim()).length).reduce((a,b)=>a*b,1);
+  $('review-count').textContent='PVT: '+count+' · ngspice: '+count+' / PEX: '+(count*2);
+  dashboard();
+}
+function reviewPlan(){
+  const strings=id=>$(id).value.split(',').map(v=>v.trim()).filter(Boolean);
+  const numbers=id=>strings(id).map(Number);
+  return {circuit:structuredClone(circuit),logic:$('review-logic').value,inputs:strings('review-inputs'),
+    supply:$('review-supply').value.trim(),output:$('review-output').value.trim(),
+    corners:strings('review-corners'),temperatures:numbers('review-temperatures'),voltages:numbers('review-voltages'),
+    settle_ns:Number($('review-settle').value),slew_ns:Number($('review-slew').value),
+    limits:{delay_ns:Number($('review-delay').value),transition_ns:Number($('review-transition').value),power_uw:Number($('review-power').value)}};
+}
+function reviewShowRun(run){
+  $('review-truth').replaceChildren();
+  for(const vector of run.functional?.vectors||[]){const row=document.createElement('tr');for(const value of [vector.inputs.join(' '),vector.expected,vector.output_v.toPrecision(5),reviewLabels[vector.status]])reviewCell(row,value);$('review-truth').append(row);}
+  render(run.simulation);
+}
+function reviewTables(){
+  const fmt=v=>v===null||v===undefined?'—':Number(v).toPrecision(4);
+  const condition=r=>`${r.corner} / ${r.temperature_c} °C / ${r.voltage} V`;
+  $('review-matrix').replaceChildren();
+  for(const run of reviewResult?.runs||[]){
+    const row=document.createElement('tr');
+    for(const v of [condition(run),reviewLabels[run.functional?.status||run.status],...['delay_ns','transition_ns','power_uw'].map(k=>fmt(run.metrics?.[k]?.value)),reviewLabels[run.status]])reviewCell(row,v);
+    const button=document.createElement('button');button.type='button';button.textContent='보기';button.onclick=()=>reviewShowRun(run);reviewCell(row,'').append(button);$('review-matrix').append(row);
+    if(run.reason||run.simulation.reason){const note=document.createElement('tr');const cell=reviewCell(note,run.reason||run.simulation.reason,true);cell.colSpan=7;$('review-matrix').append(note);}
+  }
+  $('review-deltas').replaceChildren();
+  for(const [i,delta] of (comparisonResult?.deltas||[]).entries()){
+    const row=document.createElement('tr');reviewCell(row,condition(delta),true);
+    for(const key of ['delay_ns','transition_ns','power_uw']){const m=delta.metrics[key];reviewCell(row,`${fmt(m.before)} → ${fmt(m.after)} (${fmt(m.delta)})`,true);}
+    const cell=reviewCell(row,'');for(const [key,label] of [['baseline','기준'],['postlayout','추출']]){const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>reviewShowRun(comparisonResult[key].runs[i]);cell.append(button);}
+    $('review-deltas').append(row);
+  }
+}
+async function executeReview(compare=false){
+  if(busy)return;busy=true;const controls=Array.from(panel.querySelectorAll('input,select,button')).filter(n=>n.id!=='circuit-close');controls.forEach(n=>n.disabled=true);
+  $('review-state').textContent='검증 실행 중… 전체 파형으로 기능·지연·전력을 측정합니다.';
+  try{
+    const plan=reviewPlan();
+    if(compare){comparisonResult=await api('compare',{plan,run_id:$('review-layout').value.trim(),ports:JSON.parse($('review-ports').value)});comparisonStale=$('review-layout').value.trim()!==comparisonResult.verification_run_id||(physicalStale&&physicalResult?.run_id===comparisonResult.verification_run_id);}
+    else{reviewResult=await api('review',plan);reviewStale=false;}
+    const report=compare?comparisonResult:reviewResult;
+    $('review-state').textContent=reviewLabels[report.status]+' · '+report.run_id;
+    $('review-stale').hidden=!(reviewStale||comparisonStale);reviewTables();dashboard();
+  }catch(e){$('review-state').textContent=e.message;}
+  finally{busy=false;controls.forEach(n=>n.disabled=false);$('run').disabled=!available;}
+}
+$('review-run').onclick=()=>executeReview();$('review-compare').onclick=()=>executeReview(true);
+$('review-export').onclick=()=>download({review:reviewResult||null,comparison:comparisonResult||null,physical:physicalResult||null,
+  stale:{review:reviewStale,comparison:comparisonStale,physical:physicalStale},foundry_qualified:false},'design-review.json');
+$('review-panel').addEventListener('input',reviewChanged);
+$('review-panel').addEventListener('change',reviewChanged);
+$('review-preset').onclick=()=>{$('review-corners').value='tt,ff,ss';$('review-temperatures').value='-40,27,125';$('review-voltages').value='1.8';reviewChanged();};
+window.addEventListener('floor-verification-result',event=>{
+  physicalResult=event.detail.report;physicalStale=!!event.detail.stale;
+  if(comparisonResult&&comparisonResult.verification_run_id===physicalResult?.run_id&&physicalStale){comparisonStale=true;$('review-stale').hidden=false;}
+  if(!physicalStale&&physicalResult){$('review-layout').value=physicalResult.run_id;$('layout-id').value=physicalResult.run_id;if(comparisonResult&&comparisonResult.verification_run_id!==physicalResult.run_id){comparisonStale=true;$('review-stale').hidden=false;}}
+  dashboard();
+});
+dashboard();
 $('postlayout').onclick=async()=>{
   if(busy)return;busy=true;const controls=Array.from(panel.querySelectorAll('input,select,button')).filter(n=>n.id!=='circuit-close');controls.forEach(n=>n.disabled=true);
   try{say('추출 회로를 ngspice로 해석 중…');const report=await api('postlayout',{run_id:$('layout-id').value.trim(),circuit:structuredClone(circuit),ports:JSON.parse($('ports').value)});render(report);say('Post-layout '+report.status+(report.reason?' · '+report.reason:''));}catch(e){say(e.message);}finally{busy=false;controls.forEach(n=>n.disabled=false);$('run').disabled=!available;}
