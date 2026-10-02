@@ -1,5 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Agent Design Floor — mock-virtuoso</title>
 <link rel="icon" href="/favicon.svg">
 <style>
@@ -111,6 +112,13 @@ canvas:active{cursor:grabbing}
 .pulse{width:7px;height:7px;border-radius:50%;background:var(--hi);flex:none;
        animation:pulse 1.8s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:.25}50%{opacity:1}}
+#verification-panel [hidden]{display:none!important}#verification-panel{color-scheme:dark}#verification-panel *{box-sizing:border-box}#verification-panel{font:15px system-ui;background:#101722;color:#e1e9f2;max-width:1120px;margin:32px auto;padding:0 24px}#verification-panel a{color:#84c7ff}#verification-panel p{line-height:1.65;color:#b8c8d8}#verification-panel fieldset,#verification-panel section{background:#1a2534;border:1px solid #34465c;border-radius:12px;padding:24px;margin:24px 0}#verification-panel legend{font-size:18px;font-weight:650;padding:0 8px}#verification-panel .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}#verification-panel .toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center}#verification-panel label{display:block;margin:8px 0}#verification-panel input,#verification-panel select{display:block;width:100%;margin-top:8px;padding:10px;color:inherit;background:#101722;border:1px solid #52677e;border-radius:5px}#verification-panel button{padding:10px 18px;background:#8dcaff;color:#102033;border:0;border-radius:6px;cursor:pointer}#verification-panel button.secondary{background:#31465b;color:#e1e9f2}#verification-panel button:disabled{opacity:.5;cursor:wait}#verification-panel table{border-collapse:collapse;width:100%}#verification-panel td,#verification-panel th{padding:12px;text-align:left;border-bottom:1px solid #34465c}#verification-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:400px;overflow:auto}#verification-panel .pass{color:#9be2b1}#verification-panel .fail,#verification-panel .error{color:#ffb1a8}#verification-panel .not_run{color:#f5d38f}#verification-panel .muted{font-size:13px;color:#9fb4cb}#verification-panel .rule{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:12px;align-items:end;padding:8px 0}#verification-panel .notice{padding:14px 18px;border-left:3px solid #84c7ff;background:#1a2534}#verification-panel h1{margin-bottom:8px}#verification-panel h2{font-size:20px}#verification-panel .result-title{display:flex;justify-content:space-between;align-items:center}#verification-panel select:focus,#verification-panel input:focus,#verification-panel button:focus-visible{outline:2px solid #84c7ff;outline-offset:2px}@media(max-width:700px){#verification-panel .grid,#verification-panel .rule{grid-template-columns:1fr}#verification-panel{padding:0 14px}#verification-panel fieldset,#verification-panel section{padding:16px}#verification-panel .result-title{display:block}#verification-panel td,#verification-panel th{padding:8px;font-size:13px}}
+
+#verification-panel{width:min(1120px,calc(100vw - 32px));max-width:none;max-height:90vh;margin:auto;padding:24px;border:1px solid var(--edge);overflow:auto;font:14px/1.5 system-ui;background:var(--bg);color:var(--ink)}
+#verification-panel::backdrop{background:#0009}
+#verification-panel .verify-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+#verify-open{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--edge);border-radius:5px;padding:6px 10px;cursor:pointer}
+
 </style>
 
 <header>
@@ -121,6 +129,7 @@ canvas:active{cursor:grabbing}
   </div>
   <div class="right">every line below crossed the wire as SKILL</div>
   <div id="aboutSlot" style="margin-left:12px"></div>
+  <button id="verify-open" type="button" aria-haspopup="dialog">PDK · DRC / LVS</button>
 </header>
 
 <div id="lost" hidden></div>
@@ -171,6 +180,61 @@ canvas:active{cursor:grabbing}
     </div></div>
   </div>
 </main>
+<dialog id="verification-panel" aria-labelledby="verify-title">
+<div class="verify-heading"><h1 id="verify-title">PDK · 규칙 · 검증</h1><button id="verify-close" type="button" class="secondary" aria-label="검증 패널 닫기">닫기</button></div>
+<p>PDK 기본값을 선택하고 설계 파일을 불러오세요. 프로젝트 제약을 추가하면 기본 DRC/LVS와 함께 검사합니다.</p>
+<div class="toolbar">
+  <button id="verify-import" type="button" class="secondary">설정 JSON 가져오기</button>
+  <button id="verify-export" type="button" class="secondary">설정 JSON 저장</button>
+  <button id="verify-reset" type="button" class="secondary">기본값으로 초기화</button>
+  <input id="verify-settingsFile" type="file" accept=".json" hidden>
+</div>
+<p id="verify-settingsState" class="muted" role="status">설정은 이 브라우저에 저장됩니다. GDS와 SPICE 파일 내용은 저장하지 않습니다.</p>
+<form id="verify-run">
+  <fieldset><legend>1. PDK와 검사 범위</legend>
+    <div class="grid">
+      <label>PDK<select id="verify-pdk"><option value="sky130">SKY130 · 공개 PDK</option></select></label>
+      <label>검토 범위<select id="verify-scope"><option value="cell">셀 — DRC / LVS</option><option value="chip">칩 — DRC / LVS / 밀도 / ERC / antenna</option></select></label>
+    </div>
+    <p id="verify-deckState" class="muted">설치된 rule deck 확인 중…</p>
+    <p class="muted">현재 PDK는 SKY130입니다. Magic 옵션을 켜면 RC 추출과 antenna를 검사합니다. 공정 ERC와 제조기관의 최종 승인은 별도로 필요합니다.</p>
+  </fieldset>
+  <fieldset><legend>2. 설계 파일</legend>
+    <div class="grid">
+      <label>GDS 파일 · 최대 20 MiB<input id="verify-gds" type="file" accept=".gds,.gdsii" required></label>
+      <label>회로 SPICE · 최대 2 MiB<input id="verify-spice" type="file" accept=".spice,.sp,.cir,.cdl"></label>
+      <label>최상위 셀<input id="verify-top" list="verify-topCells" required maxlength="256" placeholder="GDS를 불러오면 자동으로 제안합니다"><datalist id="verify-topCells"></datalist></label>
+      <label>LVS 기판 net<input id="verify-substrate" value="sky130_gnd" maxlength="256" required></label>
+      <label>SPICE 소자 치수 단위<select id="verify-units"><option value="micron">SKY130 µm (예: W=0.65)</option><option value="si">SI (예: W=0.65u)</option></select></label>
+      <label><input id="verify-physical" type="checkbox">Magic PEX·antenna 검사 포함 (WSL)</label>
+    </div>
+    <p id="verify-layoutInfo" class="muted">GDS의 셀 이름·레이어·단위를 자동으로 읽습니다.</p>
+    <p class="muted">SPICE를 선택하면 VNB / VSS 등 기판 net 후보를 제안합니다. 외부 .include / .lib 없이 회로 정의를 포함해야 합니다. mockTech 도형은 SKY130으로 자동 변환하지 않습니다.</p>
+  </fieldset>
+  <fieldset><legend>3. 프로젝트 제약 · 선택</legend>
+    <p>PDK 규칙에 추가할 최소 폭·간격·면적을 입력하세요. PDK 원본 규칙은 그대로 검사합니다.</p>
+    <div class="grid">
+      <label>최대 셀 가로 (µm)<input id="verify-maxWidth" type="number" min="0.000001" max="100000" step="any" placeholder="제한 없음"></label>
+      <label>최대 셀 세로 (µm)<input id="verify-maxHeight" type="number" min="0.000001" max="100000" step="any" placeholder="제한 없음"></label>
+    </div>
+    <div id="verify-rules"></div>
+    <button id="verify-addRule" type="button" class="secondary">+ 레이어 규칙 추가</button>
+    <p class="muted">폭·간격은 µm, 면적은 µm² 단위입니다. GDS에서 읽은 레이어를 선택할 수 있으며, 적용할 도형이 없는 규칙은 미실행으로 표시합니다.</p>
+  </fieldset>
+  <button id="verify-go">검사 실행</button>
+</form>
+<p id="verify-state" class="notice" role="status" aria-live="polite">아직 검사를 실행하지 않았습니다.</p>
+<section id="verify-result" hidden>
+  <div class="result-title"><h2>검사 결과</h2><button id="verify-download" type="button" class="secondary">JSON 보고서 저장</button><button id="verify-evidence" type="button">검토 자료 ZIP</button><button id="verify-pex" type="button">PEX SPICE 저장</button></div>
+  <p id="verify-identity"></p>
+  <table><thead><tr><th>검사</th><th>상태</th><th>상세</th></tr></thead><tbody id="verify-checks"></tbody></table>
+  <h3 id="verify-gate">Sign-off: 미인증</h3>
+  <p>검토 준비 상태는 선택한 범위와 프로젝트 제약에 대한 결과입니다. 제조용 sign-off에는 해당 공정과 프로젝트의 추가 요구사항 확인이 필요합니다.</p>
+  <details><summary>위반 위치 · LVS 비교 · 실행 정보</summary><pre id="verify-detail"></pre></details>
+</section>
+</dialog>
+<script src="/verification.js"></script>
+<script src="/circuit.js"></script>
 
 <script src="/render.js"></script>
 <script src="/about.js"></script>

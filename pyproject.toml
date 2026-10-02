@@ -7,6 +7,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
+verification = ["klayout>=0.30.12,<0.31"]
 
 [project.scripts]
 mock-virtuoso = "mock_virtuoso.cli:main"

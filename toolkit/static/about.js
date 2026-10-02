@@ -35,15 +35,15 @@ const ABOUT_TEXT = {
   limitsHead:{ ko: "하지 않는 것",     en: "What it does not do" },
   limits: {
     ko: [
-      "레이아웃 도메인만 다룹니다. schematic·Maestro 함수는 구현돼 있지 않습니다.",
+      "레이아웃과 회로 그래프를 다룹니다. Cadence 회로도 편집·Maestro 전체 API는 구현돼 있지 않습니다.",
       "SKILL의 부분집합입니다. 없는 함수는 nil을 돌려주지 않고 소리 내어 실패합니다.",
-      "DRC·LVS·시뮬레이션은 없습니다. 도형은 눈에 보이는 것일 뿐 검증된 것이 아닙니다.",
+      "KLayout SKY130 검증과 ngspice 회로 해석을 연결합니다. 구조적 ERC와 범용 모델은 공정 sign-off를 대신하지 않습니다.",
       "기술 파일은 작고 고정돼 있습니다 — 레이어 7종, via 정의 4종.",
     ],
     en: [
-      "The layout domain only. Schematic and Maestro functions are not implemented.",
+      "Layout and circuit graphs. Full Cadence schematic editing and Maestro APIs are not implemented.",
       "A subset of SKILL. A function it lacks fails loudly instead of returning nil.",
-      "No DRC, no LVS, no simulation. Geometry is drawn, not verified.",
+      "KLayout SKY130 verification and ngspice simulation are integrated. Structural ERC and generic models do not provide foundry sign-off.",
       "The technology is small and fixed — seven layers, four via definitions.",
     ],
   },
