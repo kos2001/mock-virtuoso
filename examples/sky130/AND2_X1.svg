@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="-0.44 -3.21 3.18 3.7">
+<title>AND2_X1 — SKY130 layout</title>
+<rect x="-0.44" y="-3.21" width="3.18" height="3.7" fill="#f8fafc"/>
+<polygon points="-0.19,-1.305 -0.19,-2.91 2.49,-2.91 2.49,-1.305" fill="#c9b2e8" fill-opacity="0.58" stroke="#c9b2e8" stroke-width="0.009"/>
+<polygon points="0,0.19 0,-1.015 2.3,-1.015 2.3,0.19" fill="#92ca92" fill-opacity="0.58" stroke="#92ca92" stroke-width="0.009"/>
+<polygon points="0,-1.355 0,-2.91 2.3,-2.91 2.3,-1.355" fill="#dcadbf" fill-opacity="0.58" stroke="#dcadbf" stroke-width="0.009"/>
+<polygon points="1.275,-0.235 1.275,-0.375 1.965,-0.375 1.965,-0.235" fill="#4bab69" fill-opacity="0.58" stroke="#4bab69" stroke-width="0.009"/>
+<polygon points="0.295,-0.375 0.295,-0.795 1.965,-0.795 1.965,-0.375" fill="#4bab69" fill-opacity="0.58" stroke="#4bab69" stroke-width="0.009"/>
+<polygon points="1.275,-0.795 1.275,-0.885 1.965,-0.885 1.965,-0.795" fill="#4bab69" fill-opacity="0.58" stroke="#4bab69" stroke-width="0.009"/>
+<polygon points="1.225,-1.485 1.225,-1.855 2.16,-1.855 2.16,-1.485" fill="#4bab69" fill-opacity="0.58" stroke="#4bab69" stroke-width="0.009"/>
+<polygon points="0.295,-1.855 0.295,-2.275 2.16,-2.275 2.16,-1.855" fill="#4bab69" fill-opacity="0.58" stroke="#4bab69" stroke-width="0.009"/>
+<polygon points="1.275,-2.275 1.275,-2.485 2.16,-2.485 2.16,-2.275" fill="#4bab69" fill-opacity="0.58" stroke="#4bab69" stroke-width="0.009"/>
+<polygon points="0.575,-0.245 0.575,-0.995 0.725,-0.995 0.725,-0.245" fill="#d54e52" fill-opacity="0.58" stroke="#d54e52" stroke-width="0.009"/>
+<polygon points="0.29,-0.995 0.29,-1.325 0.725,-1.325 0.725,-0.995" fill="#d54e52" fill-opacity="0.58" stroke="#d54e52" stroke-width="0.009"/>
+<polygon points="0.575,-1.325 0.575,-2.405 0.725,-2.405 0.725,-1.325" fill="#d54e52" fill-opacity="0.58" stroke="#d54e52" stroke-width="0.009"/>
+<polygon points="0.995,-0.245 0.995,-0.995 1.145,-0.995 1.145,-0.245" fill="#d54e52" fill-opacity="0.58" stroke="#d54e52" stroke-width="0.009"/>
+<polygon points="0.995,-0.995 0.995,-1.325 1.325,-1.325 1.325,-0.995" fill="#d54e52" fill-opacity="0.58" stroke="#d54e52" stroke-width="0.009"/>
+<polygon points="0.995,-1.325 0.995,-2.405 1.145,-2.405 1.145,-1.325" fill="#d54e52" fill-opacity="0.58" stroke="#d54e52" stroke-width="0.009"/>
+<polygon points="1.535,-0.105 1.535,-0.995 1.685,-0.995 1.685,-0.105" fill="#d54e52" fill-opacity="0.58" stroke="#d54e52" stroke-width="0.009"/>
+<polygon points="1.535,-0.995 1.535,-1.325 1.865,-1.325 1.865,-0.995" fill="#d54e52" fill-opacity="0.58" stroke="#d54e52" stroke-width="0.009"/>
+<polygon points="1.535,-1.325 1.535,-2.615 1.685,-2.615 1.685,-1.325" fill="#d54e52" fill-opacity="0.58" stroke="#d54e52" stroke-width="0.009"/>
+<polygon points="1.315,-0.295 1.315,-0.465 1.485,-0.465 1.485,-0.295" fill="#444444" fill-opacity="0.58" stroke="#444444" stroke-width="0.009"/>
+<polygon points="1.735,-0.295 1.735,-0.465 1.905,-0.465 1.905,-0.295" fill="#444444" fill-opacity="0.58" stroke="#444444" stroke-width="0.009"/>
+<polygon points="0.355,-0.435 0.355,-0.605 0.525,-0.605 0.525,-0.435" fill="#444444" fill-opacity="0.58" stroke="#444444" stroke-width="0.009"/>
+<polygon points="0.37,-1.075 0.37,-1.245 0.54,-1.245 0.54,-1.075" fill="#444444" fill-opacity="0.58" stroke="#444444" stroke-width="0.009"/>
+<polygon points="1.075,-1.075 1.075,-1.245 1.245,-1.245 1.245,-1.075" fill="#444444" fill-opacity="0.58" stroke="#444444" stroke-width="0.009"/>
+<polygon points="1.615,-1.075 1.615,-1.245 1.785,-1.245 1.785,-1.075" fill="#444444" fill-opacity="0.58" stroke="#444444" stroke-width="0.009"/>
+<polygon points="1.315,-1.915 1.315,-2.085 1.485,-2.085 1.485,-1.915" fill="#444444" fill-opacity="0.58" stroke="#444444" stroke-width="0.009"/>
+<polygon points="1.835,-1.915 1.835,-2.085 2.005,-2.085 2.005,-1.915" fill="#444444" fill-opacity="0.58" stroke="#444444" stroke-width="0.009"/>
+<polygon points="0.355,-2.045 0.355,-2.215 0.525,-2.215 0.525,-2.045" fill="#444444" fill-opacity="0.58" stroke="#444444" stroke-width="0.009"/>
+<polygon points="0.775,-2.045 0.775,-2.215 0.945,-2.215 0.945,-2.045" fill="#444444" fill-opacity="0.58" stroke="#444444" stroke-width="0.009"/>
+<polygon points="1.315,-2.255 1.315,-2.425 1.485,-2.425 1.485,-2.255" fill="#444444" fill-opacity="0.58" stroke="#444444" stroke-width="0.009"/>
+<polygon points="1.835,-2.255 1.835,-2.425 2.005,-2.425 2.005,-2.255" fill="#444444" fill-opacity="0.58" stroke="#444444" stroke-width="0.009"/>
+<polygon points="0,0.085 0,-0.085 2.3,-0.085 2.3,0.085" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="1.235,-0.085 1.235,-0.545 1.485,-0.545 1.485,-0.085" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="0.995,-1.075 0.995,-1.325 1.335,-1.325 1.335,-1.075" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="0.1,-1.075 0.1,-1.325 0.775,-1.325 0.775,-1.075" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="0.1,-1.325 0.1,-1.685 0.365,-1.685 0.365,-1.325" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="0.285,-0.355 0.285,-0.715 0.615,-0.715 0.615,-0.355" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="0.285,-0.715 0.285,-0.905 1.675,-0.905 1.675,-0.715" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="1.505,-0.905 1.505,-0.995 1.675,-0.995 1.675,-0.905" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="1.505,-0.995 1.505,-1.325 1.795,-1.325 1.795,-0.995" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="1.505,-1.325 1.505,-1.575 1.675,-1.575 1.675,-1.325" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="0.735,-1.575 0.735,-1.745 1.675,-1.745 1.675,-1.575" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="0.735,-1.745 0.735,-2.295 1.035,-2.295 1.035,-1.745" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="1.655,-0.255 1.655,-0.545 2.215,-0.545 2.215,-0.255" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="1.965,-0.545 1.965,-1.915 2.215,-1.915 2.215,-0.545" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="1.755,-1.915 1.755,-2.465 2.215,-2.465 2.215,-1.915" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="0.285,-1.965 0.285,-2.635 0.565,-2.635 0.565,-1.965" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="1.235,-1.915 1.235,-2.635 1.565,-2.635 1.565,-1.915" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="0,-2.635 0,-2.805 2.3,-2.805 2.3,-2.635" fill="#bd8b46" fill-opacity="0.58" stroke="#bd8b46" stroke-width="0.009"/>
+<polygon points="0.145,0.085 0.145,-0.085 0.315,-0.085 0.315,0.085" fill="#384958" fill-opacity="0.58" stroke="#384958" stroke-width="0.009"/>
+<polygon points="0.605,0.085 0.605,-0.085 0.775,-0.085 0.775,0.085" fill="#384958" fill-opacity="0.58" stroke="#384958" stroke-width="0.009"/>
+<polygon points="1.065,0.085 1.065,-0.085 1.235,-0.085 1.235,0.085" fill="#384958" fill-opacity="0.58" stroke="#384958" stroke-width="0.009"/>
+<polygon points="1.525,0.085 1.525,-0.085 1.695,-0.085 1.695,0.085" fill="#384958" fill-opacity="0.58" stroke="#384958" stroke-width="0.009"/>
+<polygon points="1.985,0.085 1.985,-0.085 2.155,-0.085 2.155,0.085" fill="#384958" fill-opacity="0.58" stroke="#384958" stroke-width="0.009"/>
+<polygon points="0.145,-2.635 0.145,-2.805 0.315,-2.805 0.315,-2.635" fill="#384958" fill-opacity="0.58" stroke="#384958" stroke-width="0.009"/>
+<polygon points="0.605,-2.635 0.605,-2.805 0.775,-2.805 0.775,-2.635" fill="#384958" fill-opacity="0.58" stroke="#384958" stroke-width="0.009"/>
+<polygon points="1.065,-2.635 1.065,-2.805 1.235,-2.805 1.235,-2.635" fill="#384958" fill-opacity="0.58" stroke="#384958" stroke-width="0.009"/>
+<polygon points="1.525,-2.635 1.525,-2.805 1.695,-2.805 1.695,-2.635" fill="#384958" fill-opacity="0.58" stroke="#384958" stroke-width="0.009"/>
+<polygon points="1.985,-2.635 1.985,-2.805 2.155,-2.805 2.155,-2.635" fill="#384958" fill-opacity="0.58" stroke="#384958" stroke-width="0.009"/>
+<polygon points="0,0.24 0,-0.24 2.3,-0.24 2.3,0.24" fill="#469cda" fill-opacity="0.58" stroke="#469cda" stroke-width="0.009"/>
+<polygon points="0,-2.48 0,-2.96 2.3,-2.96 2.3,-2.48" fill="#469cda" fill-opacity="0.58" stroke="#469cda" stroke-width="0.009"/>
+<text x="0.23" y="-2.72" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">VPWR</text>
+<text x="0.23" y="-0.0" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">VGND</text>
+<text x="2.07" y="-0.85" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">X</text>
+<text x="2.07" y="-0.51" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">X</text>
+<text x="2.07" y="-1.19" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">X</text>
+<text x="2.07" y="-1.53" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">X</text>
+<text x="2.07" y="-1.87" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">X</text>
+<text x="2.07" y="-2.21" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">X</text>
+<text x="1.1500000000000001" y="-1.19" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">B</text>
+<text x="0.6900000000000001" y="-1.19" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">A</text>
+<text x="0.23" y="-1.19" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">A</text>
+<text x="0.23" y="-2.72" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">VPB</text>
+<text x="0.23" y="-0.0" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">VNB</text>
+<text x="0.0" y="-0.0" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="0.10" fill="#101828" stroke="#fff" stroke-width="0.022" paint-order="stroke">and2_1</text>
+</svg>

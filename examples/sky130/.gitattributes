@@ -1,0 +1,4 @@
+*.gds binary
+*.spice -text
+LICENSE -text
+sources.json -text

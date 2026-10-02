@@ -377,7 +377,8 @@ def main() -> int:
 
     # Rehydrate installed example layouts on startup without changing user cells
     # or downloading anything implicitly. All writes use the recorded bridge.
-    example_cache = HERE.parent / ".tools" / "standard-cells"
+    from toolkit.standard_cell_layouts import bundled_directory
+    example_cache = bundled_directory(HERE.parent)
     if (example_cache / "sources.json").is_file():
         try:
             from toolkit.standard_cell_layouts import populate

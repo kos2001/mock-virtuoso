@@ -1,4 +1,7 @@
 import pytest
+import hashlib
+import json
+from pathlib import Path
 
 db=pytest.importorskip('klayout.db')
 from mock_virtuoso.session import Session
@@ -32,3 +35,18 @@ def test_import_preserves_holes_units_and_existing_cells(tmp_path):
 def test_rejects_unknown_destination():
     with pytest.raises(ValueError,match='Unknown'):
         skill_for('USER_DESIGN',[])
+
+
+def test_bundled_layouts_match_upstream_hashes_and_have_geometry():
+    from toolkit.standard_cell_layouts import CELLS, REVISION, bundled_directory
+    directory=bundled_directory(Path(__file__).resolve().parents[1])
+    assert directory.name=='sky130'
+    manifest=json.loads((directory/'sources.json').read_text(encoding='utf-8'))
+    assert manifest['revision']==REVISION
+    for name, source in manifest['files'].items():
+        assert hashlib.sha256((directory/name).read_bytes()).hexdigest()==source['sha256'],name
+    for cell, kind in CELLS.items():
+        layout=db.Layout();layout.read(str(directory/f'sky130_fd_sc_hd__{kind}_1.gds'))
+        assert layout.top_cell().name==f'sky130_fd_sc_hd__{kind}_1'
+        assert not layout.top_cell().is_empty()
+        assert (directory/(cell+'.svg')).is_file()
