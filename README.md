@@ -80,6 +80,42 @@ and verifies the archive SHA-256. Execution uses the documented
 [`-n -b -r` batch interface](https://ngspice.sourceforge.io/docs/ngspice-manual.pdf).
 
 The UI saves settings in the browser and supports JSON import/export.
+The header and both tool dialogs offer Korean/English and light/dark/system
+preferences. Switching language preserves circuit values, uploaded files and
+results; engine logs, netlists, signal names and report data retain their source
+representation.
+
+The circuit window includes runnable CMOS examples for INV, BUF, NAND2, NOR2,
+AND2, OR2, XOR2, XNOR2, MUX2, AOI21 and OAI21. Select a standard cell and load it
+to populate the SKY130 testbench with 1.8 V input pulses and a 5 fF output load.
+These are educational transistor circuits, not qualified foundry standard-cell
+layout or timing views. Inputs cycle through every Boolean combination; A is
+the fastest input and the last input is the slowest. The default experiment
+measurement checks peak output voltage, not the complete truth table.
+
+For actual layouts in the central Drawing canvas, run:
+
+```powershell
+.venv/Scripts/python.exe tools/load_standard_cells.py --fetch
+```
+
+This downloads pinned public SKY130 HD GDS/SPICE files and their license, then
+loads 12 cells into the running floor's `SKY130_EXAMPLES` library: INV, BUF,
+NAND2, NOR2, AND2, OR2, XOR2, XNOR2, MUX2, AOI21, OAI21 and DFF (all `_X1`).
+Use the **Layout cell / 레이아웃 셀** selector above the canvas. Coordinates
+remain in µm; source layer/datatype distinctions and polygon holes are retained.
+The cache includes file hashes and upstream URLs. The loader preserves existing
+cells, including `DEMO/CELL`, and installed examples reload when the floor next
+starts. These imported layouts and the educational simulation examples are
+separate views; the import does not assert LVS equivalence or sign-off.
+
+After **Run simulation**, the dialog scrolls to the waveform viewer. Standard
+cell examples enable stacked input/output traces automatically. Toggle traces,
+zoom and pan the shared axis, or move the pointer/keyboard-accessible cursor
+to inspect the nearest displayed sample. Time/frequency values use engineering
+units; the viewer indicates the raw and displayed sample counts. Last-value
+tables and engine logs remain available in expandable sections.
+
 **설계 DB에 저장** replaces the named `CIRCUITS/<name>/schematic` graph in the
 existing server through its SKILL bridge; **DB에서 불러오기** loads that name.
 The mock database is in memory: export JSON for persistence across server restarts.
