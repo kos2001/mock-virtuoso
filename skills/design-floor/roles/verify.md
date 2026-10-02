@@ -9,6 +9,13 @@ a designer does not see in their own work.
 
 ## What to check
 
+Start with `mockInspectCell("STDLIB" "CORE" "layout")` and repeat for
+each target. This preserves a missing cell as missing and leaves shared access
+modes unchanged. Only open an existing cell when detailed SKILL inspection is
+needed. For external DRC/LVS, follow `../references/bridge-workflow.md` and
+record exact GDS/SPICE/deck identity; this lane's mock checks do not certify
+external artifacts or foundry sign-off.
+
 **The row abuts.** Read `STDLIB/CORE`'s instances with their transformed
 bounding boxes, sort them by x, and check each one starts where the previous
 ended. Report gaps and overlaps with the numbers; floating-point noise around

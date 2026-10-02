@@ -49,6 +49,8 @@ class Session:
         layout.install(self)
         windows_domain.install(self)
         circuit.install(self)
+        from mock_virtuoso.domain import discovery
+        discovery.install(self)
 
     def evaluate(self, source: str, deadline: float | None = None) -> object:
         return self.interp.evaluate_source(source, deadline=deadline)

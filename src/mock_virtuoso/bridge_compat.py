@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from mock_virtuoso.auth import Authenticator
+from mock_virtuoso.skill.values import skill_repr
 
 
 def build_layout(client: Any, lib: str, cell: str, view: str = "layout") -> Any:
@@ -58,14 +59,16 @@ def clear_layout(client: Any, lib: str, cell: str, view: str = "layout",
     an editor, and a caller that means "empty this" should get an empty cell
     rather than whatever one pass happened to reach.
     """
-    skill = _CLEAR_SKILL.format(lib=lib, cell=cell, view=view)
+    # The template owns the quotes; escape each literal's contents before substitution.
+    skill = _CLEAR_SKILL.format(**{key: skill_repr(value)[1:-1] for key, value in
+                                  (("lib", lib), ("cell", cell), ("view", view))})
     for _ in range(attempts):
         result = client.execute_skill(skill)
+        if getattr(getattr(result, "status", None), "value", None) != "success":
+            return False
         remaining = (getattr(result, "output", "") or "").strip()
         if remaining in ("0", '"0"'):
             return True
-        if getattr(getattr(result, "status", None), "value", None) != "success":
-            return False
     return False
 
 

@@ -6,7 +6,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from toolkit.standard_cell_layouts import fetch, populate
+from toolkit.standard_cell_layouts import bundled_directory, fetch, populate
 
 
 def main():
@@ -14,7 +14,7 @@ def main():
     parser.add_argument('--fetch',action='store_true')
     parser.add_argument('--port',type=int,help='Existing bridge lane port; defaults to floor/lanes.env cells lane')
     args=parser.parse_args()
-    directory=ROOT/'.tools/standard-cells'
+    directory=ROOT/'.tools/standard-cells' if args.fetch else bundled_directory(ROOT)
     if args.fetch or not (directory/'sources.json').is_file():
         fetch(directory)
     port=args.port

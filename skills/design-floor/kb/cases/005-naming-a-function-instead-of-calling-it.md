@@ -23,5 +23,7 @@ function that does.
 
 ## Resolution
 
-The skill says to probe by calling. `unknown function: X` is the answer to "does
-X exist"; `unbound variable: X` only says that no variable X is set.
+Use `mockCapabilities()` on a known mock endpoint to discover callable names
+without executing them. On real Cadence, use the installed SKILL Finder.
+`unknown function: X` and `unbound variable: X` remain different errors, but
+trial calls to mutating functions are not a safe discovery mechanism.

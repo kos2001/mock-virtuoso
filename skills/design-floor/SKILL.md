@@ -8,28 +8,39 @@ description: "Design layout in a shared mock Virtuoso through virtuoso-bridge, o
 Several agents design into **one** Virtuoso session at the same time. You get a
 lane; your colleagues get theirs; the design database is shared.
 
-Read this file, then `roles/<your-lane>.md`. Those two are your brief. Everything you need to know about the session is here — probe
-it with SKILL to learn more, but do not read the implementation on the other
-end. It is a tool you drive, not code you inspect.
+Read this file, then `roles/<your-lane>.md` for an assigned lane. Read
+[bridge-workflow.md](references/bridge-workflow.md) before connecting, selecting
+an API, recovering a failed edit, or reporting DRC/LVS. It distinguishes the
+mock endpoint from real Cadence and gives executable examples. A lane is an
+ownership boundary, not permission to spawn agents or edit other cells.
 
 ## Reaching the session
 
 ```bash
-cd /Volumes/T9-Workspace/gitspace/virtuso_bridge/mock-virtuoso
-.venv/bin/virtuoso-bridge eval --env floor/lanes.env -p <your-lane> '<SKILL>'
+# From this repository's root (POSIX):
+echo 'mockCapabilities()' | .venv/bin/python tools/floor_skill.py --env floor/lanes.env -p <your-lane> --stdin
 ```
 
-Use **your** lane and no other. For SKILL with awkward quoting, feed it on stdin:
+On Windows PowerShell, use the repository's authenticated lane runner:
+
+```powershell
+'mockCapabilities()' | .venv/Scripts/python.exe tools/floor_skill.py --env floor/lanes.env -p verify --stdin
+```
+
+Use your assigned lane in place of `verify`. Never print token/environment file
+contents. Use **your** lane and no other. For SKILL with awkward quoting, feed it on stdin:
 
 ```bash
-.venv/bin/virtuoso-bridge eval --env floor/lanes.env -p <your-lane> --stdin <<'EOF'
+.venv/bin/python tools/floor_skill.py --env floor/lanes.env -p <your-lane> --stdin <<'EOF'
 <SKILL here>
 EOF
 ```
 
-`--env floor/lanes.env` points the bridge profile at your lane's port. The CLI
-is the one that ships with virtuoso-bridge, unmodified; only where it dials
-differs. Its API documentation is `skills/virtuoso/SKILL.md` in the
+`--env floor/lanes.env` points the bridge profile at your lane's port. The runner
+uses the installed bridge's `VirtuosoClient.local()` with token authentication;
+it rejects remote profiles and never starts a daemon. Upstream CLI `eval` at the
+audited revision can omit authentication on this local `from_env()` path.
+Do not disable authentication to work around it. Bridge API documentation is `skills/virtuoso/SKILL.md` in the
 `virtuoso-bridge-lite` checkout, with more under that skill's `references/`.
 
 ## The technology
@@ -93,8 +104,11 @@ layout is correct.
 
 ## What this session will and will not do
 
-It covers the **layout** domain. Schematic (`sch*`) and Maestro (`mae*`)
-functions are not implemented and say so. It interprets a subset of SKILL:
+It covers layout and explicit `mockCircuit*` JSON circuit extensions. `schCheck`
+is a limited ERC adapter, not full Cadence schematic checking. Other schematic
+(`sch*`) and Maestro (`mae*`) functions are not implemented. Query
+`mockCapabilities()` on a known mock endpoint for the installed callable names,
+accepted no-ops, extension signatures and limitations. It interprets a subset of SKILL:
 `car` `cdr` `cadr` `cons` `nth` `member` `mapcar` `foreach` `for` `length` `list`
 `strcat` `sprintf` `let` `prog` `if` `when` `unless` and the `db*`/`ge*`/`hi*`
 layout calls. `ddGetLibList` and `dbCreateParamInst` are among the things it
@@ -102,8 +116,10 @@ does not have.
 
 Absences agents keep reaching for: `while` `println` `copy` `equal` `makeTable`
 and `ddGetLibList` are not here, and neither is `dbCreateParamInst` — place
-instances with `dbCreateParamInstByMasterName`. Probe for a function by calling
-it. A bare name is a variable, so writing `someFunction` on its own answers
+instances with `dbCreateParamInstByMasterName`. Check `mockCapabilities()` rather
+than executing an unknown mutating function as a probe. On real Cadence, use
+the installed documentation finder described in the workflow reference.
+A bare name is a variable, so writing `someFunction` on its own answers
 "is there a variable called that", which is a different question and always no.
 
 `foreach` walks a list and cannot count — `for(i 0 3 …)` counts, inclusive at
@@ -133,18 +149,20 @@ success you have not read back.
 - **A failed call is not a no-op.** Nothing here is transactional: a script
   that dies partway keeps whatever it had already created, and the error says
   nothing about that. After any failure, assume the cell holds debris.
-- **Clear before every build, not just the first**, including your own second
+- For an authorized replacement of your owned cell, **Clear before every build, not just the first**, including your own second
   attempt. Skip it and you layer a whole cell on top of the last one — the
   shapes are identical, so the canvas, the bounding box and the pin labels all
   look right, and only the count gives it away. Read the count back and compare
-  it to what you drew.
+  it to what you drew. This does not authorize clearing during an incremental
+  edit or audit. After an uncertain timeout, inspect before deciding whether
+  to retry; the previous mutation may already have completed.
 
 ## What the session keeps
 
 The design database lives in the running daemon and does not survive a restart.
 Within one session your edits persist across separate `eval` invocations — you
 can build in one call and read back in the next, with or without `dbSave` — but
-a restarted floor starts empty, and a cell that existed an hour ago may simply
+a restarted floor only has what its startup loader restores, and a cell that existed an hour ago may simply
 not be there. If something you were told exists reads as `0 shapes` with a
 degenerate bounding box, that is one of the reasons.
 
@@ -174,7 +192,19 @@ let((cv)
   sprintf(nil "%d shapes, bBox %L" length(cv~>shapes) cv~>bBox))
 ```
 
-Reading a cell back, including one you do not own:
+Inspecting a cell without opening it or creating a missing cell:
+
+```skill
+mockInspectCell("STDLIB" "INV" "layout")
+```
+
+The JSON string distinguishes `exists: false` from a present empty cell and
+reports shape/instance/net/terminal/pin counts, layers and bbox. Its
+`verification: "not_run"` is deliberate: geometry inspection is not DRC/LVS.
+An audit should use this instead of opening a cell: this mock's read-mode open
+can create an absent cell and changes the shared cellview's access mode.
+
+For an existing cell where opening is intended, detailed read-back is:
 
 ```
 let((cv)

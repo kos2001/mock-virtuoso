@@ -98,3 +98,23 @@ def test_clearing_stops_when_the_daemon_reports_an_error():
     client = _Broken()
     assert clear_layout(client, "LIB", "CELL") is False
     assert client.calls == 1, "a failing daemon should not be swept twelve times"
+
+
+def test_error_output_zero_is_not_success():
+    class Broken:
+        def execute_skill(self, source):
+            return _Result("0", ok=False)
+    assert clear_layout(Broken(), "LIB", "CELL") is False
+
+
+def test_clear_quotes_identifiers_instead_of_executing_them():
+    from mock_virtuoso.session import Session
+    session = Session()
+
+    class Local:
+        def execute_skill(self, source):
+            return _Result(str(session.evaluate(source)))
+
+    name = 'CELL" unexpectedFunction() "'
+    assert clear_layout(Local(), "LIB", name)
+    assert session.design.cell_exists("LIB", name)

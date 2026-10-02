@@ -168,6 +168,16 @@ header button.tab,#verify-open{padding:8px 12px;border-radius:8px;color:var(--in
 #verification-panel .muted{color:var(--dim)}#verification-panel .notice{background:var(--hover);border-color:var(--hi);border-radius:8px}
 #verification-panel .result-title{flex-wrap:wrap;gap:8px}#verification-panel h2{color:var(--ink);letter-spacing:0;text-transform:none}
 #verify-go{width:100%;min-height:46px;font-size:15px}#verification-panel pre{background:var(--input);padding:14px;border-radius:8px}
+#verify-open{border-color:var(--hi);font-weight:650}
+#verification-panel article{min-width:0;border:1px solid var(--border);border-top:4px solid var(--hi);border-radius:8px;padding:16px;background:var(--surface)}
+#verification-panel article h2{margin-top:0}#verification-panel article p{margin-bottom:8px}
+#verification-panel article[data-status=pass]{border-top-color:var(--ok)}
+#verification-panel article[data-status=fail],#verification-panel article[data-status=error]{border-top-color:var(--err)}
+#verification-panel article[data-status=not_run]{border-top-color:var(--warning)}
+#verify-summary{margin:18px 0}#verify-summary strong{font-size:20px}
+#verify-stale{border-color:var(--warning)}#verify-preflight{margin:20px 0}#verify-preflight li{margin:8px 0}
+#verification-panel .verify-table-scroll{max-height:320px;overflow:auto;border:1px solid var(--edge);border-radius:8px}
+#verification-panel .verify-table-scroll table{table-layout:fixed}#verification-panel .verify-table-scroll th{position:sticky;top:0}
 :focus-visible{outline:2px solid var(--hi);outline-offset:3px}
 @media(max-width:700px){header .right,header .sub{display:none}header{padding:9px;gap:7px}header h1{font-size:13px}header .theme-control{margin-left:auto}header #aboutSlot{margin-left:0!important}main{grid-template-columns:minmax(0,1fr)}main>.left,main>.right,main>.grip{display:none}.status{flex-wrap:wrap;gap:8px}.status>div:last-child{display:none}.ask input{min-width:0}#verification-panel{padding:16px}#verification-panel .verify-heading{top:-16px}#verification-panel fieldset{padding:14px;min-width:0}}
 @media(prefers-reduced-motion:reduce){.pulse{animation:none}}
@@ -256,7 +266,12 @@ header button.tab,#verify-open{padding:8px 12px;border-radius:8px;color:var(--in
   </div>
 </main>
 <dialog id="verification-panel" aria-labelledby="verify-title">
-<div class="verify-heading"><h1 id="verify-title">PDK · 규칙 · 검증</h1><button id="verify-close" type="button" class="secondary" aria-label="검증 패널 닫기">닫기</button></div>
+<div class="verify-heading"><h1 id="verify-title">DRC / LVS · 물리 검증</h1><button id="verify-close" type="button" class="secondary" aria-label="검증 패널 닫기">닫기</button></div>
+<div class="grid verify-overview">
+  <article><h2>DRC · 설계 규칙</h2><p>GDS 형상을 PDK rule deck으로 검사합니다. FEOL·BEOL·off-grid·floating metal 검사를 활성화합니다.</p><strong>확인 → 위반 위치 수정 → GDS 재검사</strong></article>
+  <article><h2>LVS · 회로 일치</h2><p>GDS에서 추출한 소자·연결을 기준 SPICE와 비교합니다. 셀 이름·핀·기판 net·소자 치수 단위를 확인하세요.</p><strong>GDS + 기준 SPICE → 추출 회로 비교</strong></article>
+</div>
+<p class="notice">Drawing의 선택 셀이 자동으로 검사되지는 않습니다. 아래에 업로드한 GDS와 SPICE가 검사 대상입니다.</p>
 <p>PDK 기본값을 선택하고 설계 파일을 불러오세요. 프로젝트 제약을 추가하면 기본 DRC/LVS와 함께 검사합니다.</p>
 <div class="toolbar">
   <button id="verify-import" type="button" class="secondary">설정 JSON 가져오기</button>
@@ -296,15 +311,32 @@ header button.tab,#verify-open{padding:8px 12px;border-radius:8px;color:var(--in
     <button id="verify-addRule" type="button" class="secondary">+ 레이어 규칙 추가</button>
     <p class="muted">폭·간격은 µm, 면적은 µm² 단위입니다. GDS에서 읽은 레이어를 선택할 수 있으며, 적용할 도형이 없는 규칙은 미실행으로 표시합니다.</p>
   </fieldset>
-  <button id="verify-go">검사 실행</button>
+  <aside id="verify-preflight" class="notice" aria-live="polite">
+    <h2>실행 전 확인</h2><ul id="verify-readiness"></ul>
+    <p>Deck 설치 여부는 엔진 실행 성공을 보장하지 않습니다. 실제 실행 결과를 확인하세요.</p>
+  </aside>
+  <button id="verify-go">DRC / LVS 검사 실행</button>
 </form>
 <p id="verify-state" class="notice" role="status" aria-live="polite">아직 검사를 실행하지 않았습니다.</p>
 <section id="verify-result" hidden>
   <div class="result-title"><h2>검사 결과</h2><button id="verify-download" type="button" class="secondary">JSON 보고서 저장</button><button id="verify-evidence" type="button">검토 자료 ZIP</button><button id="verify-pex" type="button">PEX SPICE 저장</button></div>
   <p id="verify-identity"></p>
+  <p id="verify-stale" class="notice" role="status" hidden>입력이 변경되었습니다. 아래 결과는 이전 실행 기록입니다. 현재 입력으로 다시 검사하세요.</p>
+  <div id="verify-summary" class="grid" aria-label="DRC / LVS 핵심 결과"></div>
   <table><thead><tr><th>검사</th><th>상태</th><th>상세</th></tr></thead><tbody id="verify-checks"></tbody></table>
   <h3 id="verify-gate">Sign-off: 미인증</h3>
   <p>검토 준비 상태는 선택한 범위와 프로젝트 제약에 대한 결과입니다. 제조용 sign-off에는 해당 공정과 프로젝트의 추가 요구사항 확인이 필요합니다.</p>
+  <h3>DRC 위반 위치</h3>
+  <label>규칙·셀·좌표 검색<input id="verify-markerFilter" type="search" placeholder="예: met1, sky130, 10.05"></label>
+  <p id="verify-markerCount" class="muted"></p>
+  <div class="verify-table-scroll"><table><thead><tr><th>규칙</th><th>셀</th><th>위치 / 형상 (µm)</th></tr></thead><tbody id="verify-markers" data-no-translate></tbody></table></div>
+  <h3>LVS 회로 비교</h3>
+  <p>불일치 시 핀·전원·기판 연결, 소자 모델과 W/L을 확인하세요. 상세 net·소자 비교는 ZIP의 lvs.lvsdb를 KLayout에서 여세요.</p>
+  <div class="verify-table-scroll"><table><thead><tr><th>레이아웃 회로</th><th>기준 회로</th><th>비교 상태</th></tr></thead><tbody id="verify-circuits"></tbody></table></div>
+  <details><summary>실행 조건 · 입력 및 rule deck SHA-256</summary>
+    <p>보고서는 실행 시점의 입력에만 적용됩니다. ZIP에는 입력 사본·deck·로그·원본 결과 DB가 포함됩니다.</p>
+    <pre id="verify-provenance" data-no-translate></pre>
+  </details>
   <details><summary>위반 위치 · LVS 비교 · 실행 정보</summary><pre id="verify-detail"></pre></details>
 </section>
 </dialog>

@@ -21,6 +21,33 @@ TRUTH = {
 
 
 @pytest.mark.skipif(not os.environ.get('VERIFICATION_BROWSER') or not find_ngspice(), reason='Requires browser and ngspice')
+def test_review_covers_every_example_and_pvt(tmp_path):
+    from mock_virtuoso.design_review import run_review
+    playwright = pytest.importorskip('playwright.sync_api')
+    with playwright.sync_playwright() as p:
+        browser = p.chromium.launch(executable_path=os.environ['VERIFICATION_BROWSER'], headless=True)
+        page = browser.new_page()
+        page.add_script_tag(content=(ROOT/'floor/circuit.js').read_text(encoding='utf-8').split('// Circuit editor.')[0])
+        examples = page.evaluate('standardCellExamples()')
+        browser.close()
+    for example in examples:
+        circuit = example['circuit']
+        circuit['model_profile'] = 'generic'
+        plan = dict(circuit=circuit, logic=example['name'], inputs=['V'+n for n in example['inputs']],
+                    supply='VDD', output='vout', corners=['tt'], temperatures=[27], voltages=[1.8],
+                    limits=dict(delay_ns=2, transition_ns=2, power_uw=100))
+        report = run_review(plan, output=tmp_path)
+        assert report['status'] == 'pass', (example['name'], report)
+        assert len(report['runs'][0]['functional']['vectors']) == 2**len(example['inputs'])
+        if example['name'] == 'INV' and installed():
+            circuit['model_profile'] = 'sky130'
+            plan['corners'] = ['tt','ff','ss']
+            report = run_review(plan, output=tmp_path)
+            assert report['status'] == 'pass', report
+            assert {r['simulation']['pdk']['corner'] for r in report['runs']} == {'tt','ff','ss'}
+
+
+@pytest.mark.skipif(not os.environ.get('VERIFICATION_BROWSER') or not find_ngspice(), reason='Requires browser and ngspice')
 @pytest.mark.parametrize('profile',['generic','sky130'])
 def test_every_standard_cell_input_combination(profile,tmp_path):
     if profile == 'sky130' and not installed():

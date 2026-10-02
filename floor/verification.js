@@ -4,6 +4,92 @@ const $ = id => document.getElementById('verify-' + id);
 const storageKey = 'mock-virtuoso.verification.v1';
 const labels = {pass:'통과', fail:'위반 / 불일치', error:'실행 오류', not_run:'미실행'};
 let report, availableLayers = [], gdsData = null, inspectedFile = null, defaults;
+let deckChecks = {}, revision = 0, running = false;
+
+function textElement(tag, value, className) {
+  const element = document.createElement(tag);
+  element.textContent = value;
+  if (className) element.className = className;
+  return element;
+}
+
+function readiness() {
+  const layoutReady = !!gdsData && inspectedFile === $('gds').files[0];
+  const rows = [
+    [layoutReady && !!$('top').value.trim(), 'GDS와 최상위 셀', 'GDS를 선택하고 최상위 셀을 확인하세요.'],
+    [!!deckChecks.drc, 'DRC rule deck', 'DRC deck 설치가 필요합니다.'],
+    [!!deckChecks.lvs, 'LVS rule deck', 'LVS deck 설치가 필요합니다.'],
+    [!!$('spice').files[0], 'LVS 기준 SPICE', 'SPICE 없음: DRC만 실행되며 LVS는 미실행, 검토는 보류됩니다.']
+  ];
+  $('readiness').replaceChildren();
+  for (const [ready, title, missing] of rows) {
+    const item = document.createElement('li');
+    item.append(textElement('strong', title), document.createTextNode(' · '),
+      textElement('span', ready ? '준비됨' : missing, ready ? 'pass' : 'not_run'));
+    $('readiness').append(item);
+  }
+  $('go').disabled = running || !layoutReady;
+}
+
+function changed() {
+  revision++;
+  if (report) $('stale').hidden = false;
+  if (report) window.dispatchEvent(new CustomEvent('floor-verification-result', {detail:{report,stale:true}}));
+  readiness();
+}
+
+function row(body, values) {
+  const tr = document.createElement('tr');
+  tr.dataset.noTranslate = '';
+  for (const value of values) tr.append(textElement('td', String(value ?? '—')));
+  body.append(tr);
+}
+
+function markers() {
+  const drc = report?.drc || {}, all = drc.markers || [];
+  const query = $('markerFilter').value.trim().toLowerCase();
+  const matches = all.filter(item => [item.category, item.cell, ...(item.values || [])].join(' ').toLowerCase().includes(query));
+  $('markers').replaceChildren();
+  for (const item of matches.slice(0, 200)) row($('markers'), [item.category, item.cell, (item.values || []).join('\n')]);
+  $('markerCount').replaceChildren();
+  for (const [label, value] of [['전체 위반', drc.violations ?? '—'], ['보고서 위치', all.length], ['검색 결과', matches.length], ['표시', Math.min(matches.length, 200)]]) {
+    const span = document.createElement('span');
+    span.append(textElement('span', label), document.createTextNode(`: ${value} · `));
+    $('markerCount').append(span);
+  }
+  if (drc.markers_truncated || matches.length > 200) $('markerCount').append(textElement('span', '일부 위치만 표시합니다. 전체 결과는 ZIP의 drc.lyrdb에서 확인하세요.'));
+  if (!all.length) $('markerCount').append(textElement('span', drc.status === 'pass' ? 'DRC 위반이 없습니다.' : '표시할 위치가 없습니다. 검사 상태와 실행 로그를 확인하세요.'));
+}
+
+function diagnostics() {
+  $('summary').replaceChildren();
+  const guidance = {
+    drc: {pass:'업로드한 GDS가 실행한 DRC deck을 통과했습니다.', fail:'아래 규칙과 위치를 확인하고 레이아웃을 수정한 뒤 GDS를 다시 업로드하세요.', error:'ZIP의 drc.log에서 deck·입력·엔진 실행 오류를 확인하세요.', not_run:'DRC 입력과 deck을 준비한 뒤 다시 실행하세요.'},
+    lvs: {pass:'추출 소자가 있고 모든 회로 비교가 일치합니다.', fail:'핀·전원·기판 net과 소자 모델·W/L을 확인하고 다시 비교하세요.', error:'ZIP의 lvs.log에서 SPICE 구문·모델·엔진 실행 오류를 확인하세요.', not_run:'기준 SPICE를 추가해야 LVS를 실행할 수 있습니다.'}
+  };
+  for (const kind of ['drc', 'lvs']) {
+    const check = report[kind] || {status:'not_run'}, card = document.createElement('article');
+    card.dataset.status = check.status;
+    card.append(textElement('h2', kind.toUpperCase()), textElement('strong', labels[check.status] || check.status, check.status));
+    const metric = document.createElement('p');
+    metric.append(textElement('span', kind === 'drc' ? '전체 위반' : '추출 소자'), document.createTextNode(`: ${kind === 'drc' ? check.violations ?? '—' : check.extracted_devices ?? '—'}`));
+    card.append(metric, textElement('p', guidance[kind][check.status] || ''));
+    if (check.reason) { const reason = textElement('p', check.reason); reason.dataset.noTranslate = ''; card.append(reason); }
+    $('summary').append(card);
+  }
+  $('markerFilter').value = ''; markers();
+  $('circuits').replaceChildren();
+  for (const circuit of report.lvs?.circuits || []) row($('circuits'), [circuit.layout, circuit.schematic, circuit.status]);
+  if (!report.lvs?.circuits?.length) {
+    // Keep technical identifiers untouched, but translate the empty-state explanation.
+    const tr = document.createElement('tr'), td = textElement('td', '비교된 회로가 없습니다. LVS 상태를 확인하세요.');
+    td.colSpan = 3; tr.append(td); $('circuits').append(tr);
+  }
+  $('provenance').textContent = JSON.stringify({run_id:report.run_id, engine:report.engine_version,
+    top:report.top, settings:report.settings, drc:report.drc?.parameters, lvs:report.lvs?.parameters,
+    inputs:report.inputs}, null, 2);
+}
+$('markerFilter').oninput = markers;
 
 async function api(path, data) {
   const response = await fetch(path, data === undefined ? {} : {
@@ -70,7 +156,7 @@ function addRule(rule = {kind:'min_width', layer:68, datatype:20, value_um:0.14}
   const unit = () => row.querySelector('[data-unit]').textContent = row.querySelector('[data-kind]').value === 'min_area' ? '최소 면적 (µm²)' : '최소값 (µm)';
   row.querySelector('[data-kind]').onchange = () => { unit(); remember(); };
   unit();
-  row.querySelector('button').onclick = () => { row.remove(); remember(); };
+  row.querySelector('button').onclick = () => { row.remove(); remember(); changed(); };
   $('rules').appendChild(row);
 }
 
@@ -94,7 +180,8 @@ async function encode(file) {
 
 $('gds').onchange = async () => {
   const file = $('gds').files[0]; gdsData = null; inspectedFile = null;
-  if (!file) return;
+  changed();
+  if (!file) { $('layoutInfo').textContent = 'GDS를 선택하고 최상위 셀을 확인하세요.'; return; }
   $('go').disabled = true; $('layoutInfo').textContent = 'GDS 셀과 레이어를 읽는 중…';
   try {
     if (file.size > 20*1024*1024) throw Error('GDS 크기는 최대 20 MiB입니다.');
@@ -109,7 +196,7 @@ $('gds').onchange = async () => {
       $('top').value = info.top_cells[0].name;
     for (const select of $('rules').querySelectorAll('[data-layer]')) layerOptions(select, select.value);
     $('layoutInfo').textContent = `최상위 셀 ${info.top_cells.length}개 · 레이어 ${info.layers.length}개 · DBU ${info.dbu_um} µm`;
-    $('go').disabled = false; remember();
+    readiness(); remember();
   } catch (error) { if ($('gds').files[0] === file) $('layoutInfo').textContent = error.message; }
 };
 
@@ -131,8 +218,9 @@ $('spice').onchange = async () => {
   } catch (error) { $('settingsState').textContent = error.message; }
 };
 
-$('run').addEventListener('input', remember);
-$('addRule').onclick = () => { try { addRule(); remember(); } catch (error) { $('settingsState').textContent = error.message; } };
+$('run').addEventListener('input', () => { remember(); changed(); });
+$('run').addEventListener('change', changed);
+$('addRule').onclick = () => { try { addRule(); remember(); changed(); } catch (error) { $('settingsState').textContent = error.message; } };
 $('export').onclick = async () => {
   try {
     const value = await api('/api/verification/settings', project());
@@ -146,22 +234,24 @@ $('settingsFile').onchange = async () => {
     const file = $('settingsFile').files[0]; if (!file) return;
     if (file.size > 128*1024) throw Error('설정 JSON은 최대 128 KiB입니다.');
     const value = await api('/api/verification/settings', JSON.parse(await file.text()));
-    apply(value); remember();
+    apply(value); remember(); changed();
     $('settingsState').textContent = '프로젝트 설정을 적용했습니다.';
   } catch (error) { $('settingsState').textContent = `설정을 불러오지 못했습니다: ${error.message}`; }
   finally { $('settingsFile').value = ''; }
 };
-$('reset').onclick = () => { if (defaults) { apply(defaults); remember(); $('settingsState').textContent = 'PDK 기본값으로 초기화했습니다.'; } };
+$('reset').onclick = () => { if (defaults) { apply(defaults); remember(); changed(); $('settingsState').textContent = 'PDK 기본값으로 초기화했습니다.'; } };
 
 $('run').onsubmit = async event => {
-  event.preventDefault(); $('go').disabled = true; $('result').hidden = true;
+  event.preventDefault(); if (running) return;
+  running = true; $('go').disabled = true; $('result').hidden = true;
+  const startedRevision = revision, layoutData = gdsData;
   $('state').textContent = '검사 중입니다. 검사별 최대 실행 시간은 5분입니다.';
   try {
     const file = $('gds').files[0], spice = $('spice').files[0];
     if (!gdsData || inspectedFile !== file) throw Error('GDS를 선택해 셀·레이어 읽기를 완료하세요.');
     if (spice && spice.size > 2*1024*1024) throw Error('SPICE 크기는 최대 2 MiB입니다.');
     const config = await api('/api/verification/settings', project());
-    report = await api('/api/verification', {...config, gds_base64:gdsData, netlist:spice ? await spice.text() : null});
+    report = await api('/api/verification', {...config, gds_base64:layoutData, netlist:spice ? await spice.text() : null});
     $('identity').textContent = `${report.top} · ${report.engine_version} · ${report.created_at}`;
     $('checks').replaceChildren();
     for (const item of report.signoff.checklist) {
@@ -173,11 +263,13 @@ $('run').onsubmit = async event => {
       row.className = check.status; $('checks').appendChild(row);
     }
     $('detail').textContent = JSON.stringify(report,null,2); $('result').hidden = false;
+    diagnostics(); $('stale').hidden = startedRevision === revision;
+    window.dispatchEvent(new CustomEvent('floor-verification-result', {detail:{report,stale:startedRevision !== revision}}));
     const ready = report.signoff.status === 'ready_for_review';
     $('gate').textContent = ready ? '검토 준비 완료 · 제조 sign-off 미인증' : `검토 보류: ${report.signoff.blocking_checks.join(', ')}`;
     $('state').textContent = ready ? '선택한 범위의 검사가 통과했습니다.' : '체크리스트를 확인하세요. 미실행·오류는 통과로 처리하지 않습니다.';
   } catch (error) { $('state').textContent = error.message; }
-  finally { $('go').disabled = false; }
+  finally { running = false; readiness(); }
 };
 $('download').onclick = () => saveFile(report, `verification-${report.run_id}.json`);
 $('evidence').onclick=async()=>{try{const response=await fetch('/api/verification/evidence/'+report.run_id);if(!response.ok)throw Error('검토 자료를 만들지 못했습니다.');const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');a.href=url;a.download='evidence-'+report.run_id+'.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){$('gate').textContent=e.message;}};
@@ -186,7 +278,7 @@ $('pex').onclick=()=>{if(!report?.pex?.netlist){$('gate').textContent='PEX 검�
 (async () => {
   try {
     const data = await api('/api/verification/catalog'), pdk = data.pdks[0];
-    defaults = pdk.defaults; availableLayers = pdk.layers;
+    defaults = pdk.defaults; availableLayers = pdk.layers; deckChecks = pdk.checks;
     $('deckState').textContent = Object.entries(pdk.checks).map(([name,ready]) => `${name.toUpperCase()}: ${ready ? '준비됨' : 'deck 설치 필요'}`).join(' · ');
     let saved; try { saved = localStorage.getItem(storageKey); } catch (error) {}
     if (saved) {
@@ -196,6 +288,7 @@ $('pex').onclick=()=>{if(!report?.pex?.netlist){$('gate').textContent='PEX 검�
       } catch (error) { apply(defaults); $('settingsState').textContent = '저장된 설정이 유효하지 않아 기본값을 적용했습니다.'; }
     } else apply(defaults);
   } catch (error) { $('deckState').textContent = error.message; }
+  finally { readiness(); }
 })();
 
 const panel = document.getElementById('verification-panel');

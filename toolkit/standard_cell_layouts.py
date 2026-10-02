@@ -11,6 +11,14 @@ CELLS = {'INV_X1': 'inv', 'BUF_X1': 'buf', 'NAND2_X1': 'nand2',
          'XOR2_X1': 'xor2', 'XNOR2_X1': 'xnor2', 'MUX2_X1': 'mux2',
          'AOI21_X1': 'a21oi', 'OAI21_X1': 'o21ai', 'DFF_X1': 'dfxtp'}
 LIBRARY = 'SKY130_EXAMPLES'
+
+
+def bundled_directory(root):
+    """Prefer versioned examples, falling back to the historical local cache."""
+    bundled = Path(root)/'examples/sky130'
+    return bundled if (bundled/'sources.json').is_file() else Path(root)/'.tools/standard-cells'
+
+
 LAYERS = {(64,20):'nwell', (65,20):'diff', (65,44):'tap', (66,20):'poly',
           (66,44):'licon1', (67,20):'li1', (67,44):'mcon', (68,20):'met1',
           (68,44):'via', (69,20):'met2', (69,44):'via2', (70,20):'met3',

@@ -104,6 +104,10 @@ class Interpreter:
     def has(self, name: str) -> bool:
         return name in self._builtins
 
+    def callable_names(self) -> list[str]:
+        """Installed names, including special forms; no trial execution."""
+        return sorted(set(self._builtins) | set(_SPECIAL_FORMS))
+
     def resolve_handle(self, text: str) -> object:
         raise SkillError(f"no object registry for handle {text}")
 
