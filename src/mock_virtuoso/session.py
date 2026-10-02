@@ -45,9 +45,10 @@ class Session:
         # 이 한 줄만이 둘을 잇는다.
         self.interp.resolve_handle = self.design.resolve
 
-        from mock_virtuoso.domain import layout, windows as windows_domain
+        from mock_virtuoso.domain import circuit, layout, windows as windows_domain
         layout.install(self)
         windows_domain.install(self)
+        circuit.install(self)
 
     def evaluate(self, source: str, deadline: float | None = None) -> object:
         return self.interp.evaluate_source(source, deadline=deadline)

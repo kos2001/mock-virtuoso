@@ -219,22 +219,23 @@ def build_from_request(text: str) -> dict:
     """
     started = time.time()
     planner = "hermes"
+    trace = []
     try:
-        plan, planner = plan_and_validate(text)
+        plan, planner = plan_and_validate(text, trace=trace)
     except PlanError as exc:
-        return {"ok": False, "planner": planner, "plan": None,
+        return {"ok": False, "planner": planner, "plan": None, "harness": {"attempts": trace},
                 "answer": f"Refused the {planner} plan before touching the design: {exc}\n"
                           "It was sent back once with that reason and still did not "
                           "validate. Nothing was executed."}
 
     assert REQUEST_CLIENT is not None
     try:
-        plan, report, planner = build_and_check(REQUEST_CLIENT, text, plan, planner)
+        plan, report, planner = build_and_check(REQUEST_CLIENT, text, plan, planner, trace=trace)
     except Exception as exc:                                   # noqa: BLE001
         return {"ok": False, "planner": planner, "plan": plan,
                 "answer": f"bridge error: {type(exc).__name__}: {exc}"}
 
-    return {"ok": True, "planner": planner, "plan": plan,
+    return {"ok": True, "planner": planner, "plan": plan, "harness": report["harness"],
             "cells": [{"lib": plan["lib"], "cell": c} for c in report["cells"]],
             "answer": answer_text(plan, report, planner, time.time() - started)}
 
@@ -260,6 +261,35 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         url = urlparse(self.path)
+        if url.path in ("/api/circuit/check", "/api/circuit/simulate", "/api/circuit/save", "/api/circuit/load", "/api/circuit/experiment", "/api/circuit/postlayout"):
+            from toolkit.circuit_service import inspect, run, design_store, experiment, postlayout
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if not 0 < length <= 256 * 1024:
+                    return self._send({"error": "Circuit JSON limit is 256 KiB"}, 413)
+                payload = json.loads(self.rfile.read(length))
+                if url.path.endswith("/postlayout"):
+                    return self._send(postlayout(payload))
+                if url.path.endswith("/experiment"):
+                    return self._send(experiment(payload))
+                if url.path.endswith(("/save", "/load")):
+                    return self._send(design_store(REQUEST_CLIENT, payload, load=url.path.endswith("/load")))
+                return self._send((inspect if url.path.endswith("/check") else run)(payload))
+            except (ValueError, OSError, RuntimeError) as exc:
+                return self._send({"error": str(exc)}, 400)
+        if url.path in ("/api/verification", "/api/verification/inspect", "/api/verification/settings"):
+            from toolkit.verification_service import verify_upload, inspect_upload, validate_settings
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if not 0 < length <= 32 * 1024 * 1024:
+                    return self._send({"error": "Upload limit is 32 MiB"}, 413)
+                payload = json.loads(self.rfile.read(length))
+                action = {"/api/verification": verify_upload,
+                          "/api/verification/inspect": inspect_upload,
+                          "/api/verification/settings": validate_settings}[url.path]
+                return self._send(action(payload))
+            except (ValueError, ImportError, OSError, RuntimeError) as exc:
+                return self._send({"error": str(exc)}, 400)
         if url.path != "/api/request":
             return self._send({"error": "not found"}, 404)
         length = int(self.headers.get("Content-Length") or 0)
@@ -270,8 +300,28 @@ class Handler(BaseHTTPRequestHandler):
         self._send(build_from_request(text))
 
     def do_GET(self) -> None:
+        if urlparse(self.path).path.startswith("/api/verification/evidence/"):
+            from toolkit.verification_service import evidence
+            try:
+                return self._raw(evidence(urlparse(self.path).path.rsplit("/", 1)[1]), "application/zip")
+            except (ValueError, OSError) as exc:
+                return self._send({"error": str(exc)}, 400)
+        if urlparse(self.path).path == "/api/circuit/history":
+            from mock_virtuoso.experiments import history
+            from toolkit.circuit_service import ROOT
+            return self._send(history(ROOT / "simulation-runs"))
         url = urlparse(self.path)
         query = parse_qs(url.query)
+        if url.path == "/circuit.js":
+            return self._raw((HERE / "circuit.js").read_bytes(), "application/javascript; charset=utf-8")
+        if url.path == "/api/circuit/catalog":
+            from toolkit.circuit_service import catalog
+            return self._send(catalog())
+        if url.path == "/verification.js":
+            return self._raw((HERE / "verification.js").read_bytes(), "application/javascript; charset=utf-8")
+        if url.path == "/api/verification/catalog":
+            from toolkit.verification_service import catalog
+            return self._send(catalog())
         if url.path in ("/", "/index.html"):
             return self._raw((HERE / "floor.html").read_bytes(), "text/html; charset=utf-8")
         if url.path in ("/render.js", "/about.js"):
@@ -305,7 +355,7 @@ def write_lane_env(lanes: dict[str, Lane], path: Path) -> None:
             f"VB_LOCAL_PORT_{name}={lane.port}",
             f"VB_REMOTE_PORT_{name}={lane.port}",
         ]
-    path.write_text("\n".join(lines) + "\n")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def main() -> int:

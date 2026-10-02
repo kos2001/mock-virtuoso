@@ -74,6 +74,7 @@ class Handler(BaseHTTPRequestHandler):
 
         t0 = time.time()
         planner_used = "rules"
+        trace = []
         try:
             if PLANNER == "rules":
                 plan = validate(plan_with_rules(text)[0])
@@ -81,20 +82,23 @@ class Handler(BaseHTTPRequestHandler):
                 # Refusals go back to the model once, carrying what the
                 # knowledge base knows about that failure. Nothing has been
                 # executed at this point, so a retry cannot half-build a cell.
-                plan, planner_used = plan_and_validate(text)
+                plan, planner_used = plan_and_validate(text, trace=trace,
+                                                       allow_fallback=PLANNER != "hermes")
         except PlanError as exc:
             return self._chat(
                 f"Rejected the {planner_used} plan before touching the design: {exc}\n"
                 "It was sent back once with that reason and still did not validate. "
-                "Nothing was executed.", t0, planner_used, error=True)
+                "Nothing was executed.", t0, planner_used, error=True,
+                harness={"attempts": trace, "status": "refused"})
         try:
-            plan, report, planner_used = build_and_check(CLIENT, text, plan, planner_used)
+            plan, report, planner_used = build_and_check(CLIENT, text, plan, planner_used, trace=trace)
         except Exception as exc:                               # noqa: BLE001
             return self._chat(f"bridge error: {type(exc).__name__}: {exc}", t0, planner_used,
-                              error=True)
-        self._chat(answer_text(plan, report, planner_used, time.time() - t0), t0, planner_used)
+                              error=True, harness={"attempts": trace, "status": "execution_error"})
+        self._chat(answer_text(plan, report, planner_used, time.time() - t0), t0, planner_used,
+                   harness=report["harness"])
 
-    def _chat(self, content: str, t0: float, planner: str, error: bool = False):
+    def _chat(self, content: str, t0: float, planner: str, error: bool = False, harness=None):
         self._json({
             "id": f"chatcmpl-{uuid.uuid4().hex[:24]}",
             "object": "chat.completion", "created": int(time.time()), "model": MODEL,
@@ -102,7 +106,7 @@ class Handler(BaseHTTPRequestHandler):
                          "message": {"role": "assistant", "content": content}}],
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             "x_virtuoso": {"planner": planner, "elapsed_s": round(time.time() - t0, 2),
-                           "error": error},
+                           "error": error, "harness": harness},
         })
 
 

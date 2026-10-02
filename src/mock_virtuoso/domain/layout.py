@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from copy import copy, deepcopy
+from math import isfinite
+
 from mock_virtuoso.db.geometry import (
+    ORIENTS,
     bbox_of_path,
     bbox_of_points,
     transform_bbox,
@@ -247,6 +251,100 @@ def install(session) -> None:
                     master.get_prop("viewName"), name, xy, orient))
         return created
 
+    def edit_figure(args, copying):
+        if not 2 <= len(args) <= 3:
+            raise SkillError("figure edit expects figure, destination, optional transform")
+        fig, dest = args[:2]
+        if not isinstance(fig, (Shape, Instance)):
+            raise SkillError("expected a shape or instance")
+        source = next((cv for cv in design.open_cellviews
+                       if fig in cv.shapes or fig in cv.instances), None)
+        if source is None:
+            raise SkillError("figure does not belong to an open cellView")
+        dest = source if dest is NIL else _as_cellview(dest)
+        if dest not in design.open_cellviews:
+            raise SkillError("destination must be an open cellView")
+        if dest.mode == "r" or (not copying and source.mode == "r"):
+            raise SkillError("cannot edit a read-only cellView")
+        trans = args[2] if len(args) == 3 else [[0, 0], "R0", 1]
+        if not isinstance(trans, list) or len(trans) not in (2, 3):
+            raise SkillError("expected transform list(offset orientation [scale])")
+        offset = _point(trans[0], "offset")
+        orient = trans[1]
+        scale = _number(trans[2], "scale") if len(trans) == 3 else 1.0
+        if orient not in ORIENTS:
+            raise SkillError("unknown orientation")
+        if not all(isfinite(n) for n in [*offset, scale]) or scale <= 0:
+            raise SkillError("transform requires finite coordinates and positive scale")
+        if isinstance(fig, Instance):
+            if scale != 1:
+                raise SkillError("instance magnification is not supported")
+            master = fig.get_prop("master")
+            if isinstance(master, CellView) and dest in _reachable_cellviews(master):
+                raise SkillError("cyclic instance hierarchy")
+        if (not copying and dest is not source and isinstance(fig, Shape)
+                and fig.get_prop("net") is not NIL):
+            raise SkillError("moving a connected figure between cellViews is not supported")
+
+        def point(p):
+            return transform_point([scale * p[0], scale * p[1]], offset, orient)
+
+        def orientation(old):
+            # Compose on both basis vectors, including reflected orientations.
+            basis = [[1, 0], [0, 1]]
+            mapped = [transform_point(transform_point(p, [0, 0], old),
+                                      [0, 0], orient) for p in basis]
+            return next(o for o in ORIENTS if
+                        [transform_point(p, [0, 0], o) for p in basis] == mapped)
+
+        updates = {}
+        if isinstance(fig, Shape):
+            box = [[scale * n for n in p] for p in fig.bbox]
+            updates["_slot_bBox"] = transform_bbox(box, offset, orient)
+            if fig.get_prop("points") is not NIL:
+                updates["_slot_points"] = [point(p) for p in fig.get_prop("points")]
+            if fig.get_prop("width") is not NIL:
+                updates["_slot_width"] = scale * fig.get_prop("width")
+        if fig.get_prop("xy") is not NIL:
+            updates["_slot_xy"] = point(fig.get_prop("xy"))
+        if fig.get_prop("orient") is not NIL:
+            updates["_slot_orient"] = orientation(fig.get_prop("orient"))
+        if isinstance(fig, Instance):
+            names = {i.get_prop("name") for i in dest.instances if copying or i is not fig}
+            name = fig.get_prop("name")
+            candidate, suffix = name, 1
+            while candidate in names:
+                candidate = f"{name}_{suffix}"
+                suffix += 1
+            updates["_slot_name"] = candidate
+
+        # Validate and calculate everything before changing the database.
+        result = copy(fig) if copying else fig
+        if copying and isinstance(fig, Shape):
+            result._slot_lpp = list(fig.get_prop("lpp"))
+            result._slot_net = NIL  # Copy geometry, not pins or electrical ownership.
+        if copying and isinstance(fig, Instance):
+            result.params = deepcopy(fig.params)
+        result.__dict__.update(updates)
+        collection = "shapes" if isinstance(fig, Shape) else "instances"
+        if copying:
+            design.register(result)
+            getattr(dest, collection).append(result)
+        elif dest is not source:
+            getattr(source, collection).remove(fig)
+            getattr(dest, collection).append(fig)
+            session.selection[:] = [item for item in session.selection if item is not fig]
+        dest.saved = False
+        if not copying:
+            source.saved = False
+        return result
+
+    def db_copy_fig(it, args, kwargs):
+        return edit_figure(args, True)
+
+    def db_move_fig(it, args, kwargs):
+        return edit_figure(args, False)
+
     def db_save(it, args, kwargs):
         cv = _as_cellview(args[0])
         cv.saved = True
@@ -439,6 +537,8 @@ def install(session) -> None:
         ("dbOpenCellViewByType", db_open_cellview_by_type),
         ("dbOpenCellView", db_open_cellview),
         ("dbCreateRect", db_create_rect),
+        ("dbCopyFig", db_copy_fig),
+        ("dbMoveFig", db_move_fig),
         ("dbCreatePath", db_create_path),
         ("dbCreatePolygon", db_create_polygon),
         ("dbCreateLabel", db_create_label),

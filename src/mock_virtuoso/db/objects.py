@@ -222,6 +222,7 @@ class CellView(DbObject):
         self._slot_nets: list[Net] = []
         self._slot_terminals: list[Term] = []
         self.saved = False
+        self.circuit: dict = {}
 
     def clear_contents(self) -> None:
         """Empty the cell in place, keeping every handle onto it valid."""
@@ -229,6 +230,7 @@ class CellView(DbObject):
         self._slot_instances.clear()
         self._slot_nets.clear()
         self._slot_terminals.clear()
+        self.circuit.clear()
         self.saved = False
 
     def adopt_contents(self, other: "CellView") -> None:
@@ -242,6 +244,7 @@ class CellView(DbObject):
         self._slot_nets = other._slot_nets
         self._slot_terminals = other._slot_terminals
         self.saved = other.saved
+        self.circuit = other.circuit
 
     @property
     def shapes(self) -> list:

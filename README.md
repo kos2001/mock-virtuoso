@@ -17,15 +17,17 @@ byte-level success/failure framing the real daemon uses.
 
 ## What this is not
 
-This is not an EDA tool. It does not implement DRC, LVS, device physics,
-parasitic extraction, simulation, or anything resembling real layout
-verification. It implements just enough of SKILL's surface syntax and a
+The SKILL core is a test double, not a replacement for Virtuoso or a foundry
+sign-off tool. Its `mockDrcCheck` uses mockTech rules. The optional verification
+workflow below runs real open-source KLayout DRC, LVS and density decks on
+external SKY130 GDS/SPICE inputs. The core implements a subset of SKILL's syntax and a
 subset of the `db*`/`dd*`/`tech*`/`hi*`/`ge*`/`le*`/`pte*` function families
 to let a bridge client create, read back, select, and delete layout
-geometry and to exercise the protocol layer. Schematic functions (`sch*`)
-and Maestro functions (`mae*`) are out of scope for this milestone; calling
-them fails with `unknown function`, which is the same failure mode as
-calling any other unimplemented function (see "Design" below).
+geometry and to exercise the protocol layer. A declarative circuit editor now
+provides structural ERC, SPICE export and real ngspice simulation. Its explicit
+`mockCircuit*` extensions and limited `schCheck` work on imported circuit graphs;
+general Cadence schematic drawing (`schCreate*`) and Maestro (`mae*`) APIs remain
+unimplemented and fail with `unknown function`.
 
 ## Install
 
@@ -33,6 +35,208 @@ calling any other unimplemented function (see "Design" below).
 uv venv .venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
 ```
+
+### Open-source physical verification
+
+The Design Floor includes a **PDK · DRC / LVS** panel with guided PDK, rules and GDS/SPICE
+inputs for **real KLayout SKY130 DRC and LVS**. This is separate from `mockDrcCheck`:
+mockTech geometry is not a SKY130 PDK layout and is not automatically remapped.
+
+Project constraints support minimum width/spacing (`value_um`) and minimum
+connected-polygon area (`kind: "min_area"`, `value_um2`). Area checks operate on
+merged hierarchical geometry and report measured area and violation locations.
+
+### Circuit editing, ERC and analog simulation
+
+Use **회로 · 시뮬레이션** in the existing Design Floor. Edit components and named nets,
+inspect the connection diagram, check ERC, export SPICE, and run ngspice without
+leaving the page. Components: R, C, L, independent voltage/current sources, diodes
+and four-terminal NMOS/PMOS (D,G,S,B order). Values use SI units; node `0` is ground.
+Diodes and level-1 MOS use **generic demonstration models**, not foundry PDK models.
+
+The editor offers operating point, DC source sweep, AC frequency response
+(complex magnitude/phase retained) and transient analysis, plus temperature.
+Pulse sources can be imported in circuit JSON with `low`, `high`, `delay`, `rise`,
+`fall`, `width`, `period` under a source's `pulse` field. Results include vectors,
+logs, engine version, input hash and exportable JSON. At most 2001 samples are
+displayed; complete raw data stays in `simulation-runs/<id>/`.
+
+Structural ERC rejects missing ground, dangling nets, structural DC-floating nets,
+shorted two-terminal components and ideal voltage-source/inductor loops. AC runs
+require AC excitation. ERC failures block simulation; missing engines, timeouts and
+invalid output never count as successful runs. This is a connectivity screen,
+not foundry electrical reliability checking.
+
+Install the official pinned Windows engine into this checkout:
+
+```powershell
+.venv/Scripts/python.exe -m pip install py7zr
+.venv/Scripts/python.exe tools/fetch_ngspice.py
+```
+
+Alternatively set `NGSPICE_EXE` or install `ngspice` on PATH. The downloader uses
+the [official ngspice distribution](https://ngspice.sourceforge.io/download.html)
+and verifies the archive SHA-256. Execution uses the documented
+[`-n -b -r` batch interface](https://ngspice.sourceforge.io/docs/ngspice-manual.pdf).
+
+The UI saves settings in the browser and supports JSON import/export.
+**설계 DB에 저장** replaces the named `CIRCUITS/<name>/schematic` graph in the
+existing server through its SKILL bridge; **DB에서 불러오기** loads that name.
+The mock database is in memory: export JSON for persistence across server restarts.
+Agents can use `mockCircuitLoad(cv json)`, `mockCircuitRead(cv)`, `mockCircuitERC(cv)`,
+`mockCircuitNetlist(cv)` and `mockCircuitSimulate(cv)` on a schematic cellview.
+`schCheck(cv)` returns error/warning counts for a graph loaded by `mockCircuitLoad`;
+it does not infer connectivity from arbitrary schematic drawings.
+
+```powershell
+.venv/Scripts/python.exe -m mock_virtuoso.cli circuit circuit.json --action check
+.venv/Scripts/python.exe -m mock_virtuoso.cli circuit circuit.json --action netlist
+.venv/Scripts/python.exe -m mock_virtuoso.cli circuit circuit.json --action simulate
+```
+
+The existing circuit window also supports **SKY130 1.8 V NMOS/PMOS models**,
+TT/FF/SS/FS/SF corners, and an experiment manager with temperature/source/RLC
+sweeps, measurements, acceptance bounds, result comparison and persistent history.
+Measurements use every raw sample; `mean` is the arithmetic sample mean.
+Experiments are limited to 30 combinations and 16 measurements. Use
+`POST /api/circuit/experiment` for multiple measurement definitions;
+`GET /api/circuit/history` lists the latest 30 experiments.
+This is an independent workflow, not Cadence Maestro API compatibility.
+
+On Windows with WSL Ubuntu, install the reproducible PDK/extraction profile:
+
+```powershell
+.venv/Scripts/python.exe tools/bootstrap_pdk.py --system-deps
+```
+
+This installs build dependencies inside Ubuntu, ciel 3.0.0, SKY130 primitives
+at `0c1df35fd535299ea1ef74d1e9e15dedaeb34c32`, and Magic 8.3.684 at
+`4f53bb3091d1e4a9b2009a58f157a8a4331d4c84` under `.tools`.
+Subsequent installations can omit `--system-deps`. For another distribution,
+use `--distro NAME` and set `MAGIC_WSL_DISTRO=NAME` when starting the server.
+Simulation jobs snapshot the selected PDK model dependencies as `models.spice`,
+including source hashes, corner and revision in their result report.
+SI MOS widths/lengths in the editor are converted to the model's micrometre units.
+The SKY130 diode, bipolar, RF and other device families are not editor components.
+RLC elements remain ideal. Public PDK models do not establish foundry approval.
+
+In the physical verification window, select **Magic PEX·antenna 검사 포함**.
+This adds real RC extraction and antenna checks to the review gate, including
+for cell scope. Download the extracted SPICE or **검토 자료 ZIP** with the
+snapshotted GDS, decks, logs, native results and an external review checklist.
+For post-layout simulation, copy the verification run ID from its JSON report
+into the circuit window's **Post-layout** section, define sources/RLC loads,
+and map every extracted pin to a testbench net. Both PEX and LVS must pass.
+Results retain the original verification ID and layout/extracted-netlist hashes.
+
+Full Virtuoso API parity, full Maestro functionality, process ERC, reliability
+qualification and foundry-qualified sign-off remain outside this implementation.
+The review bundle supports external approval; it does not issue that approval.
+
+### Installing physical verification decks
+
+Install the optional report-reader dependency, the full KLayout application,
+and the pinned upstream rule decks:
+
+```powershell
+.venv/Scripts/python.exe -m pip install -e ".[verification]"
+.venv/Scripts/python.exe tools/fetch_verification_decks.py
+$env:KLAYOUT_EXE = "C:/path/to/klayout_app.exe"
+.venv/Scripts/python.exe floor/design_floor.py
+```
+
+The Python `klayout` package reads geometry and result databases; the full
+[KLayout application](https://www.klayout.de/build.html) executes the Ruby decks.
+The floor also discovers an unpacked Windows executable under `.tools/klayout`.
+Set `SKY130_DECKS` to override the floor's default `.tools/sky130` deck directory.
+Open the panel from the existing Design Floor at `http://127.0.0.1:8900`.
+It uses the same page and server; closing it preserves the design view and verification inputs.
+
+For batch use:
+
+```powershell
+.venv/Scripts/python.exe -m mock_virtuoso.cli verify --klayout $env:KLAYOUT_EXE --gds design.gds --top inverter --netlist design.spice
+```
+
+The CLI returns 0 when the selected review gate is ready, 1 for violations,
+mismatch, missing required checks or run errors, and 2 for setup/input errors. Each run gets an
+isolated `verification-runs/<id>/` directory with input snapshots, rule decks,
+tool logs, native `.lyrdb`/`.lvsdb` reports, reusable `settings.json` and `result.json`. The JSON records
+input/deck SHA-256 hashes, tool version and enabled parameters. Run again after
+editing a design: an older report only describes its own input snapshot.
+SPICE must be self-contained; `.include` and `.lib` are refused. The web upload
+limits are 20 MiB for GDS and 2 MiB for SPICE.
+
+Input conveniences:
+
+- SKY130 preset and installed-deck readiness; other PDKs are refused rather than
+  silently running the wrong deck.
+- GDS top-cell names, layer numbers and DBU are inspected automatically. Rule
+  layer dropdowns use the uploaded file's actual layers.
+- SPICE top-level pins suggest a substrate net such as `VNB`. The input remains
+  editable. Use `--substrate VNB` for the public SKY130 standard-cell fixture.
+- SPICE dimensions are explicitly selected: SKY130 micron values (`W=0.65`,
+  also written `W=650000u` in the public fixture) versus SI (`W=0.65u`). The default
+  is micron; `--spice-units si` selects SI. Both conventions are recorded.
+- Settings auto-save in the browser, with JSON import/export for reuse and sharing.
+  Layout/netlist file contents are not stored in browser preferences.
+- Project-specific minimum width, spacing and maximum cell dimensions are
+  entered in µm. KLayout checks them through the hierarchy, in addition to the
+  unchanged PDK deck. Missing geometry is reported, not silently passed.
+
+Project constraints can also be supplied with `--constraints constraints.json`:
+
+```json
+{
+  "max_width_um": 100,
+  "max_height_um": 100,
+  "rules": [
+    {"kind": "min_width", "layer": 68, "datatype": 20, "value_um": 0.2},
+    {"kind": "min_space", "layer": 68, "datatype": 20, "value_um": 0.2}
+  ]
+}
+```
+
+Upstream decks are downloaded unchanged at pinned revisions, with their license
+notices intact and a `sources.json` provenance record:
+
+- [Efabless MPW precheck DRC](https://github.com/efabless/mpw_precheck/blob/0941bdc1b62b5c3f99c8683bd11199d330af2ef3/checks/tech-files/sky130A_mr.drc), GPLv3 notice in the deck.
+- [Efabless SKY130 LVS](https://github.com/efabless/sky130_klayout_pdk/blob/dace518392e9f0e98422359cc7063cd4e281b564/tech/sky130/lvs/sky130.lvs), Apache-2.0 notice in the deck.
+- [Efabless clear-area metal density](https://github.com/efabless/mpw_precheck/blob/0941bdc1b62b5c3f99c8683bd11199d330af2ef3/checks/drc_checks/klayout/met_min_ca_density.lydrc).
+
+DRC explicitly enables FEOL, BEOL, off-grid and floating-metal checks because
+upstream defaults disable several groups. A missing/unreadable result, timeout,
+empty LVS comparison, or extraction with no devices cannot pass. The cell review
+gate requires DRC/LVS plus any configured project constraints. `--scope chip`
+adds density, ERC and antenna to the checklist. The public density deck checks
+clear-area density and requires a nonempty chip boundary on GDS 235/4; it does
+not represent every density requirement. Process ERC has no qualified backend;
+antenna runs when the Magic option is enabled. Missing checks block the chip
+gate. This is a physical-verification workflow,
+**not foundry sign-off certification**: `signoff.eligible` remains false even
+when a cell is `ready_for_review`. Timing, reliability and extraction qualification
+remain project-specific requirements.
+
+Actual-engine regression tests use a pinned public SKY130 inverter. Fetch the
+fixture and set the application path to include them in the test suite:
+
+```powershell
+.venv/Scripts/python.exe tools/fetch_verification_decks.py --fixtures
+$env:KLAYOUT_EXE = (Resolve-Path .tools/klayout/klayout-0.30.12-win64/klayout_app.exe).Path
+.venv/Scripts/python.exe -m pytest tests/test_verification_integration.py
+```
+
+These test clean DRC/LVS, an added narrow wire, mismatched transistor width,
+missing chip boundary and excessive metal density. An optional browser test
+in `tests/test_verification_browser.py` uses Playwright and `VERIFICATION_BROWSER`
+(the path to a Chromium/Edge executable) to verify real uploads, automatic input
+suggestions, settings import/export, constraints, persistence and mobile layout.
+
+The SKILL mock also supports `dbCopyFig(figure destination [transform])` and
+`dbMoveFig(figure destination [transform])` for geometry and instances. Transforms
+support offsets and all eight orthogonal orientations; shape scaling is supported.
+Instance magnification and cross-cell moves of connected shapes are explicitly
+refused. Copies duplicate geometry without duplicating electrical pins/nets.
 
 `mock_virtuoso` itself has no dependency on `virtuoso_bridge` and never
 will — see "Design" below. To run the contract test suite (the tests that
@@ -149,7 +353,7 @@ uv pip install --python .venv/bin/python -e ../virtuoso-bridge-lite   # test-tim
 It builds a small layout (device rectangles, metal routing, a via, pin labels), places
 two instances of it in a top cell, reads the result back through the bridge's own
 `parse_layout_geometry_output`, batch-fetches attributes, writes a screenshot, and shows
-out-of-scope SKILL (`mae*`, `sch*`) failing loudly rather than silently succeeding.
+unimplemented SKILL (`mae*`, `schCreate*`) failing loudly rather than silently succeeding.
 
 ## Driving it with an agent
 
@@ -393,6 +597,36 @@ it actually serves, and falls back to a short list of bare ports. Nothing reacha
 stated reason, not a silent downgrade to the rules planner.
 
 Two properties worth stating plainly:
+
+The shared Hermes harness repairs malformed or truncated JSON and invalid plan
+fields before execution. A repair receives the original request, the rejected plan,
+the validation error and relevant recorded lessons. It is bounded to one planning
+retry and one DRC correction by default; bridge execution failures are not blindly
+retried. A correction with missing readback or an unavailable DRC check cannot
+replace the previous design. `--planner hermes` refuses an unavailable model instead
+of substituting the rules template; `auto` retains its explicit template fallback.
+
+Design Floor responses include `harness`, and the OpenAI-compatible endpoint returns
+it under `x_virtuoso.harness`: attempt stage, outcome, elapsed time, DRC error count,
+readback errors and final verification status. These refer to mockTech checks,
+not SKY130 or foundry sign-off. Attempt metadata does not contain API keys or prompts.
+
+Run a reproducible recovery evaluation:
+
+```powershell
+.venv/Scripts/python.exe tools/evaluate_harness.py --repeats 3
+.venv/Scripts/python.exe tools/evaluate_harness.py --live --output .tools/harness-live.json
+```
+
+Replay compares retries disabled/enabled across clean, malformed JSON, malformed
+coordinates, truncated, DRC-failing and persistently invalid responses. Only model
+responses are replayed: HTTP, bridge execution, database readback and mockTech DRC
+are real. The independent task check requires one rectangle at the requested
+coordinates; an empty design or fallback cannot pass. The JSON report records every
+trial, model-call counts (replay), elapsed time and aggregate task success counts.
+This is a repair ablation, not a measured before/after improvement in model quality.
+`--live` uses `VB_PLANNER_URL`, `VB_PLANNER_MODEL` and `VB_PLANNER_KEY` (or profile
+discovery) for a narrow live rectangle task; it fails if no model is available.
 
 **The model's output is never executed.** Every plan passes a strict validator first —
 op whitelist, layer whitelist, numeric coordinates with bounds, identifier-only cell and
