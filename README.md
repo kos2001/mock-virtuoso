@@ -202,6 +202,36 @@ Set `SKY130_DECKS` to override the floor's default `.tools/sky130` deck director
 Open the panel from the existing Design Floor at `http://127.0.0.1:8900`.
 It uses the same page and server; closing it preserves the design view and verification inputs.
 
+#### macOS verification setup
+
+Use the repository environment for dependencies and pinned SKY130 decks:
+
+```bash
+uv pip install --python .venv/bin/python -e ".[dev,verification]"
+.venv/bin/python tools/fetch_verification_decks.py --fixtures
+```
+
+Download the full application matching your macOS version and architecture from
+the [official KLayout downloads](https://www.klayout.de/build.html). The Python
+package alone does not execute the Ruby DRC/LVS decks. Place `klayout.app` in
+`.tools/klayout/`, `/Applications/`, or `~/Applications/`; the floor discovers
+these locations automatically. `KLAYOUT_EXE` overrides discovery.
+
+For a checkout-local application, run the external integration checks with:
+
+```bash
+export KLAYOUT_EXE="$PWD/.tools/klayout/klayout.app/Contents/MacOS/klayout"
+.venv/bin/python -m pytest tests/test_verification_integration.py -q
+.venv/bin/python floor/design_floor.py
+```
+
+For circuit simulation, the [ngspice project](https://ngspice.sourceforge.io/download.html)
+recommends Homebrew on macOS (`brew install ngspice`). An existing `ngspice`
+on PATH is used automatically; `NGSPICE_EXE` can select another executable.
+`fetch_ngspice.py` downloads a Windows executable, and `bootstrap_pdk.py` uses
+Windows WSL; neither is a native macOS installer. The deck integration tests
+do not install SKY130 transistor models or Magic PEX/antenna support.
+
 ### Functional / PVT review and pre/post-layout comparison
 
 In **Circuit · Simulation**, load a standard-cell example and open

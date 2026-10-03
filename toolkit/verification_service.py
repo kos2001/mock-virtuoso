@@ -12,6 +12,22 @@ from mock_virtuoso.project_rules import validate_constraints
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def find_klayout():
+    configured = os.environ.get("KLAYOUT_EXE") or shutil.which("klayout")
+    if configured:
+        return configured
+    local = ROOT / ".tools" / "klayout"
+    for pattern in ("klayout_app.exe", "klayout.exe", "klayout.app/Contents/MacOS/klayout"):
+        binaries = sorted(path for path in local.rglob(pattern) if path.is_file())
+        if binaries:
+            return str(binaries[0])
+    for directory in (Path("/Applications"), Path.home() / "Applications"):
+        binary = directory / "klayout.app" / "Contents" / "MacOS" / "klayout"
+        if binary.is_file():
+            return str(binary)
+    return None
+
+
 def validate_settings(payload):
     if not isinstance(payload, dict):
         raise ValueError("Project settings must be an object")
@@ -97,12 +113,7 @@ def verify_upload(payload):
     spice = payload.get("netlist")
     if spice is not None and (not isinstance(spice, str) or len(spice) > 2 * 1024 * 1024):
         raise ValueError("SPICE netlist must be text of at most 2 MiB")
-    executable = os.environ.get("KLAYOUT_EXE") or shutil.which("klayout")
-    if not executable:
-        binaries = list((ROOT / ".tools" / "klayout").rglob("klayout_app.exe"))
-        if not binaries:
-            binaries = list((ROOT / ".tools" / "klayout").rglob("klayout.exe"))
-        executable = str(binaries[0]) if binaries else None
+    executable = find_klayout()
     if not executable:
         raise ValueError("KLayout executable not found; install KLayout and set KLAYOUT_EXE")
     decks = Path(os.environ.get("SKY130_DECKS", str(ROOT / ".tools" / "sky130")))
