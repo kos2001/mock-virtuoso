@@ -1,0 +1,39 @@
+{
+  "top": "strongarm_sky130",
+  "devices": 11,
+  "pdk_revision": "0c1df35fd535299ea1ef74d1e9e15dedaeb34c32",
+  "dbu_um": 0.001,
+  "ports": [
+    "VINP",
+    "VINN",
+    "CLK",
+    "OUTP",
+    "OUTN",
+    "VDD",
+    "VSS"
+  ],
+  "dimensions_um": [
+    83.305,
+    24.045
+  ],
+  "assumptions": {
+    "vdd": 1.8,
+    "clock_hz": 10000000.0,
+    "common_mode_v": 0.9,
+    "differential_v": [
+      -0.01,
+      0.01
+    ],
+    "output_load_f": 5e-15
+  },
+  "inputs": {
+    "reference.spice": "1ea6bf83c0ab059b21af7dbed653db1ef5b8bbb762ed647f0cf24090728483c1",
+    "strongarm_sky130.gds": "0c97cbf44aef2dd625bd6e6a9bf6de45cb4658c52184555892ff0a1f523ab63e",
+    "generate.tcl": "ad7bb13d83a2cb1ba918f5cd3fd0ee98effa029673500c9cb58f553603f98385"
+  },
+  "note": "New declared reference; not claimed equivalent to original conceptual layout.",
+  "generator_sources": {
+    "libs.tech/magic/sky130A.tcl": "a55c760c887ac41ed18595bb51b45fb21d38f228511021dd73063fd119685689",
+    "libs.tech/magic/sky130A.tech": "6b993379be0d9ec6ddbfdd889379d045b8192782453069d30ded95567d1ac9a1"
+  }
+}

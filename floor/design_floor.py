@@ -261,6 +261,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         url = urlparse(self.path)
+        if url.path in ("/api/layout/check", "/api/layout/status"):
+            from toolkit.layout_verification import verify, status
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if not 0 < length <= 3 * 1024 * 1024:
+                    return self._send({"error": "Layout check JSON limit is 3 MiB"}, 413)
+                payload = json.loads(self.rfile.read(length))
+                action = verify if url.path.endswith("/check") else status
+                return self._send(action(REQUEST_CLIENT, payload))
+            except (ValueError, ImportError, OSError, RuntimeError, KeyError) as exc:
+                return self._send({"error": str(exc)}, 400)
         if url.path in ("/api/circuit/review", "/api/circuit/compare"):
             from toolkit.review_service import review, compare
             try:
@@ -334,6 +345,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(catalog())
         if url.path in ("/", "/index.html"):
             return self._raw((HERE / "floor.html").read_bytes(), "text/html; charset=utf-8")
+        if url.path == "/layout-check.js":
+            return self._raw((HERE / "layout-check.js").read_bytes(), "application/javascript; charset=utf-8")
         if url.path in ("/render.js", "/about.js"):
             return self._raw((STATIC / url.path.lstrip("/")).read_bytes(),
                              "application/javascript; charset=utf-8")
@@ -346,8 +359,13 @@ class Handler(BaseHTTPRequestHandler):
             payload["events"] = TRANSCRIPT.since(since)
             return self._send(payload)
         if url.path == "/api/geometry":
-            return self._send(read_layout(READER, query.get("lib", ["STDLIB"])[0],
-                                          query.get("cell", ["INV"])[0]))
+            from toolkit.layout_verification import read_snapshot, canvas_geometry
+            try:
+                data = read_snapshot(READER, {"library": query.get("lib", ["STDLIB"])[0],
+                                             "cell": query.get("cell", ["INV"])[0]})
+                return self._send(canvas_geometry(data))
+            except (ValueError, KeyError) as exc:
+                return self._send({"ok": False, "errors": [str(exc)], "rows": [], "masters": {}})
         self._send({"error": "not found"}, 404)
 
 

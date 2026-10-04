@@ -1,0 +1,13 @@
+.subckt strongarm_sky130 VINP VINN CLK OUTP OUTN VDD VSS
+XMtail tail CLK VSS VSS sky130_fd_pr__nfet_01v8 w=4 l=0.15
+XMinp xn VINP tail VSS sky130_fd_pr__nfet_01v8 w=2 l=0.15
+XMinn xp VINN tail VSS sky130_fd_pr__nfet_01v8 w=2 l=0.15
+XMlnp OUTP OUTN xp VSS sky130_fd_pr__nfet_01v8 w=1 l=0.15
+XMlnn OUTN OUTP xn VSS sky130_fd_pr__nfet_01v8 w=1 l=0.15
+XMlpp OUTP OUTN VDD VDD sky130_fd_pr__pfet_01v8 w=1 l=0.15
+XMlpn OUTN OUTP VDD VDD sky130_fd_pr__pfet_01v8 w=1 l=0.15
+XMrxp xp CLK VDD VDD sky130_fd_pr__pfet_01v8 w=1 l=0.15
+XMrxn xn CLK VDD VDD sky130_fd_pr__pfet_01v8 w=1 l=0.15
+XMrop OUTP CLK VDD VDD sky130_fd_pr__pfet_01v8 w=1 l=0.15
+XMron OUTN CLK VDD VDD sky130_fd_pr__pfet_01v8 w=1 l=0.15
+.ends strongarm_sky130

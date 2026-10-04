@@ -1,0 +1,202 @@
+{
+  "target": "layout_gen/strongarm_sky130/layout",
+  "physical_run_id": "b78de06c85104716a6116e02504be3b0",
+  "physical_directory": "/Volumes/T9-Workspace/gitspace/virtuso_bridge/mock-virtuoso/verification-runs/b78de06c85104716a6116e02504be3b0",
+  "gds_sha256": "0c97cbf44aef2dd625bd6e6a9bf6de45cb4658c52184555892ff0a1f523ab63e",
+  "reference_sha256": "1ea6bf83c0ab059b21af7dbed653db1ef5b8bbb762ed647f0cf24090728483c1",
+  "pdk_revision": "0c1df35fd535299ea1ef74d1e9e15dedaeb34c32",
+  "tools": {
+    "klayout": "KLayout 0.30.12",
+    "magic": "Magic 8.3 revision 684 - Compiled on Sat Oct  3 13:59:48 KST 2026.",
+    "ngspice": [
+      "******",
+      "** ngspice-46 : Circuit level simulation program",
+      "** Compiled with KLU Direct Linear Solver",
+      "** The U. C. Berkeley CAD Group",
+      "** Copyright 1985-1994, Regents of the University of California.",
+      "** Copyright 2001-2025, The ngspice team."
+    ]
+  },
+  "physical": {
+    "drc": {
+      "status": "pass",
+      "violations": 0
+    },
+    "lvs": {
+      "status": "pass",
+      "extracted_devices": 11
+    },
+    "pex": {
+      "status": "pass",
+      "devices": 11
+    },
+    "antenna": {
+      "status": "pass",
+      "feedback_count": 0
+    }
+  },
+  "geometry": {
+    "status": "pass",
+    "scope": "Generated GDS -> live mock DB -> GDS physical polygon XOR on all layers",
+    "snapshot_sha256": "24ae05b647b0e5efe31117017dd4ebbfb30e55ddb3b90464e5239210cf57e47b",
+    "shape_count": 1021,
+    "bbox_um": [
+      [
+        1.75,
+        -2.995
+      ],
+      [
+        85.055,
+        21.05
+      ]
+    ],
+    "pins": 7,
+    "layers": [
+      {
+        "layer": 235,
+        "datatype": 4,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 65,
+        "datatype": 20,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 65,
+        "datatype": 44,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 94,
+        "datatype": 20,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 93,
+        "datatype": 44,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 66,
+        "datatype": 20,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 66,
+        "datatype": 44,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 95,
+        "datatype": 20,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 67,
+        "datatype": 20,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 67,
+        "datatype": 44,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 68,
+        "datatype": 20,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 64,
+        "datatype": 20,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 68,
+        "datatype": 44,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 69,
+        "datatype": 20,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 69,
+        "datatype": 44,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 70,
+        "datatype": 20,
+        "xor_area_dbu2": 0
+      },
+      {
+        "layer": 70,
+        "datatype": 5,
+        "xor_area_dbu2": 0
+      }
+    ]
+  },
+  "simulation": {
+    "reference": {
+      "status": "pass",
+      "cases": 30,
+      "decisions": 90,
+      "measured": {
+        "delay_ns_min": 0.24000000000000082,
+        "delay_ns_max": 0.8599999999999892,
+        "power_uw_min": 0.5213835984749646,
+        "power_uw_max": 2.5031119348416193
+      },
+      "tt_27_positive": {
+        "delay_ns": 0.34000000000001496,
+        "power_uw": 0.5573329306630501
+      },
+      "artifact": "characterization.json",
+      "artifact_sha256": "2eb32c1c70c291793e4980c4dfedfc97bb2a8f1bfcd1f4c18c2476468b0968d3"
+    },
+    "pex": {
+      "status": "pass",
+      "cases": 30,
+      "decisions": 90,
+      "measured": {
+        "delay_ns_min": 1.0199999999998066,
+        "delay_ns_max": 4.039999999999909,
+        "power_uw_min": 2.145042204941257,
+        "power_uw_max": 4.356523584461575
+      },
+      "tt_27_positive": {
+        "delay_ns": 1.5599999999997043,
+        "power_uw": 2.363299994384064
+      },
+      "artifact": "post-layout-characterization.json",
+      "artifact_sha256": "4a3989044080ae8ff09e5f848c7eabfa2a20e17b9b4112b0626190c9f4d13ff8"
+    }
+  },
+  "alternating_input": {
+    "status": "pass",
+    "cases": 2,
+    "decisions": 6,
+    "corner": "tt",
+    "temperature_c": 27
+  },
+  "conditions": {
+    "vdd_v": 1.8,
+    "clock_hz": 10000000.0,
+    "common_mode_v": 0.9,
+    "load_f": 5e-15,
+    "criterion": "Correct differential polarity and >=1.44 V differential within 49 ns of evaluate edge",
+    "performance_acceptance_limits": "Not supplied; measured only",
+    "delay_definition": "CLK 50% rising edge to differential output >=80% VDD; sampled at <=20ps",
+    "power_definition": "DUT VDD supply power averaged over 100-300ns; ideal input/clock driver energy excluded"
+  },
+  "limits": [
+    "Performance limits were not supplied; results are measured under declared conditions.",
+    "Voltage fixed at 1.8 V; common-mode fixed at 0.9 V; differential input +/-10 mV.",
+    "Device mismatch, noise, offset distributions and full common-mode/clock-rate characterization not run.",
+    "Public PDK checks are not foundry-qualified sign-off."
+  ],
+  "original_design": "Original strongarm_comparator retained unchanged; this new cell uses a newly declared independent reference."
+}

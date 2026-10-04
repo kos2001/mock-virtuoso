@@ -8,3 +8,15 @@ floor/lanes.env
 .test-tmp*/
 verification-runs/
 simulation-runs/
+layout-runs/
+
+# Reproducible comparator tool outputs (scripts/reference/GDS remain reviewable).
+comparator-sky130/simulation/
+comparator-sky130/post-layout-simulation/
+comparator-sky130/models-*.spice
+comparator-sky130/*.mag
+comparator-sky130/n[0-9]*.gds
+comparator-sky130/p[0-9]*.gds
+comparator-sky130/nmos_test*
+comparator-sky130/generation.log
+comparator-sky130/evidence.zip
