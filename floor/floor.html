@@ -230,7 +230,7 @@ header button.tab,#verify-open{padding:8px 12px;border-radius:8px;color:var(--in
        aria-label="resize the agents panel"></div>
 
   <div class="col">
-    <div class="layout-controls"><label>레이아웃 셀<select id="layout-cell" aria-label="레이아웃 셀"></select></label><button id="layout-fit" type="button">전체 보기</button></div>
+    <div class="layout-controls"><label>레이아웃 셀<select id="layout-cell" aria-label="레이아웃 셀"></select></label><button id="layout-fit" type="button">전체 보기</button><button id="layout-check-open" type="button">선택 셀 검증</button></div>
     <div class="tabs" id="tabs"></div>
     <div class="canvas"><canvas id="cv"></canvas></div>
 
@@ -342,6 +342,36 @@ header button.tab,#verify-open{padding:8px 12px;border-radius:8px;color:var(--in
 </dialog>
 <script src="/verification.js"></script>
 <script src="/circuit.js"></script>
+<style>
+#layout-check-panel{width:min(850px,calc(100vw - 32px));max-height:90vh;overflow:auto;padding:24px;border:1px solid var(--edge);border-radius:16px;background:var(--bg);color:var(--ink)}
+#layout-check-panel::backdrop{background:#0009}#layout-check-panel label{display:block;margin:12px 0}#layout-check-panel select,#layout-check-panel input{max-width:100%;padding:8px;background:var(--input);color:var(--ink);border:1px solid var(--edge)}
+#layout-check-panel button{padding:9px 14px;margin:6px;border:1px solid var(--edge);border-radius:6px;background:var(--accent);color:var(--accent-ink);cursor:pointer}#layout-check-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--input);padding:14px}#layout-check-panel [hidden]{display:none!important}
+</style>
+<dialog id="layout-check-panel" aria-labelledby="layout-check-title">
+  <h2 id="layout-check-title">선택 셀 검증</h2>
+  <p id="layout-check-target"></p>
+  <p>DB와 하위 셀을 읽어 입력을 고정하고, GDS 내보내기 전후 형상을 비교합니다. 화면 렌더링 자체는 별도 확인이 필요합니다.</p>
+  <label>레이어 매핑 <select id="layout-check-profile"><option value="mockTech">mockTech · 교육용 형상 검사</option><option value="sky130">SKY130 · 명시적 PDK 레이어 매핑 + 실제 DRC/LVS</option></select></label>
+  <p>SKY130 매핑은 현재 형상이 SKY130 공정 구조를 갖춘 경우에 선택하세요. mock via는 물리 via 구조로 자동 변환하지 않습니다.</p>
+  <div id="layout-check-physical" hidden>
+    <label>기준 SPICE <input id="layout-check-spice" type="file" accept=".spice,.sp,.cir,.scs"></label>
+    <label>기판 net <input id="layout-check-substrate" value="VNB"></label>
+    <label>SPICE 치수 단위 <select id="layout-check-units"><option value="micron">µm</option><option value="si">SI · m</option></select></label>
+    <label><input id="layout-check-pex" type="checkbox"> Magic PEX·antenna 포함 (엔진과 PDK 설치 필요)</label>
+  </div>
+  <button id="layout-check-run" type="button">현재 셀 검사</button>
+  <button id="layout-check-close" type="button">닫기</button>
+  <p id="layout-check-state" role="status"></p>
+  <p id="layout-check-stale" role="alert" hidden>입력 또는 셀이 변경되었습니다. 재검사가 필요합니다.</p>
+  <div id="layout-check-result" hidden>
+    <pre id="layout-check-summary"></pre>
+    <button id="layout-check-gds" type="button">검사한 GDS 저장</button>
+    <button id="layout-check-json" type="button">보고서 JSON 저장</button>
+    <button id="layout-check-evidence" type="button" hidden>외부 검증 자료 ZIP</button>
+    <details><summary>형상 · 연결 · 검증 상세</summary><pre id="layout-check-detail"></pre></details>
+  </div>
+</dialog>
+<script src="/layout-check.js"></script>
 
 <script src="/render.js"></script>
 <script src="/about.js"></script>

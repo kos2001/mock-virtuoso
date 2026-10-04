@@ -275,6 +275,47 @@ qualified models, constraints and coverage.
 
 ### DRC / LVS review workflow
 
+The Drawing toolbar now offers **선택 셀 검증** (selected-cell verification).
+It reads the selected `library/cell/layout` and every referenced master through
+the read-only `mockLayoutSnapshot` bridge extension, recording geometry,
+instance transforms, named nets, terminals and pin-to-shape associations.
+A SHA-256 covers the complete hierarchy: changes to a master or connectivity
+invalidate the report as well as edits to the top cell. The page checks freshness
+every three seconds while a report is loaded, including when the dialog is closed.
+Unavailable freshness checks mark the result stale. No cell is opened or created
+by this snapshot operation.
+
+The default **mockTech** profile exports educational GDS layer numbers and runs
+per-cell mock bounding-box DRC. **SKY130** explicitly selects the project's
+SKY130 layer/purpose mapping and runs real KLayout decks on GDS exported from
+that snapshot; upload a matching reference SPICE for LVS. Mapping does not
+convert mock transistor/via structures into a PDK layout. Unknown mappings,
+mock via objects, unresolved instance parameters, empty geometry and coordinates
+outside the 0.0001 µm GDS export grid are refused rather than silently omitted
+or rounded. Real via polygons imported from GDS are supported.
+
+Each export is read back and compared by per-layer polygon XOR, text and
+instance transforms. This checks GDS serialization, not the canvas renderer,
+electrical connectivity or functional performance. Those statuses are separate.
+Use the existing circuit review and PEX comparison workflow for performance.
+Reports retain both the database snapshot hash and exact GDS hash, and can be
+downloaded with the checked GDS. `layout-runs/<id>/` stores the immutable DB
+snapshot, GDS and report; external verification evidence ZIPs also contain
+`layout-snapshot.json` and the source hashes. A stale report remains evidence
+about its original inputs and must not be used to approve the current cell.
+
+`POST /api/layout/check` accepts `library`, `cell`, optional `profile`
+(`mockTech` or `sky130`), `netlist` and external verification `settings`.
+`POST /api/layout/status` accepts the target and `snapshot_sha256` to check
+freshness without running DRC/LVS again. An older running daemon must be
+restarted with its existing data restoration procedure before using the new
+snapshot extension.
+
+The floor's canvas now consumes the same read-only snapshot format, including
+path widths and nested master geometry. Paths are drawn along their centreline
+with their actual width rather than as filled bounding rectangles. Pixel-level
+renderer verification is still separate from GDS readback checks.
+
 The [versioned SKY130 layout bundle](examples/sky130/README.md) contains all
 12 Drawing examples as original GDS/reference SPICE, with SVG previews,
 upstream source hashes and the original Apache-2.0 license. They can be opened
@@ -828,3 +869,13 @@ of scope here — `mock-virtuoso` must not special-case around it. If
 (`test_read_summary_upstream_bug_zero_instances_yields_nil` and
 `test_read_summary_upstream_bug_truncates_after_first_instance`) will fail
 and must be flipped to match the corrected behavior.
+
+## Verified SKY130 comparator
+
+A separate `layout_gen/strongarm_sky130` demonstrator preserves the original
+conceptual comparator and provides real SKY130 device geometry, an independent
+reference schematic, DRC/LVS/antenna checks, RC extraction and paired reference /
+post-layout ngspice characterization. See
+[the comparator workflow](comparator-sky130/README.md) and
+[its measured evidence summary](comparator-sky130/summary.json) for exact inputs,
+conditions, tool versions, limitations and reproduction commands.

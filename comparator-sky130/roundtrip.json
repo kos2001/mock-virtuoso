@@ -1,0 +1,104 @@
+{
+  "status": "pass",
+  "scope": "Generated GDS -> live mock DB -> GDS physical polygon XOR on all layers",
+  "snapshot_sha256": "24ae05b647b0e5efe31117017dd4ebbfb30e55ddb3b90464e5239210cf57e47b",
+  "shape_count": 1021,
+  "bbox_um": [
+    [
+      1.75,
+      -2.995
+    ],
+    [
+      85.055,
+      21.05
+    ]
+  ],
+  "pins": 7,
+  "layers": [
+    {
+      "layer": 235,
+      "datatype": 4,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 65,
+      "datatype": 20,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 65,
+      "datatype": 44,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 94,
+      "datatype": 20,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 93,
+      "datatype": 44,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 66,
+      "datatype": 20,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 66,
+      "datatype": 44,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 95,
+      "datatype": 20,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 67,
+      "datatype": 20,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 67,
+      "datatype": 44,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 68,
+      "datatype": 20,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 64,
+      "datatype": 20,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 68,
+      "datatype": 44,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 69,
+      "datatype": 20,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 69,
+      "datatype": 44,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 70,
+      "datatype": 20,
+      "xor_area_dbu2": 0
+    },
+    {
+      "layer": 70,
+      "datatype": 5,
+      "xor_area_dbu2": 0
+    }
+  ]
+}

@@ -17,6 +17,7 @@ def install(session):
             "extensions": {
                 "mockCapabilities": "mockCapabilities() -> JSON string",
                 "mockInspectCell": 'mockInspectCell(lib cell view) -> JSON string; never opens or creates',
+                "mockLayoutSnapshot": 'mockLayoutSnapshot(lib cell view) -> hierarchy JSON with content hash; read-only',
                 "mockDrcCheck": "mockDrcCheck(cv) -> violation strings; educational rules only",
                 "mockCircuitLoad": "mockCircuitLoad(schematicCV circuitJSON) -> t; replaces circuit",
                 "mockCircuitRead": "mockCircuitRead(schematicCV) -> circuit JSON string",
@@ -56,5 +57,12 @@ def install(session):
             })
         return json.dumps(report)
 
+    def layout_snapshot(it, args, kwargs):
+        if kwargs or len(args) != 3 or not all(isinstance(a, str) and a for a in args):
+            raise SkillError("mockLayoutSnapshot expects three nonempty strings: lib cell view")
+        from mock_virtuoso.layout_snapshot import snapshot
+        return json.dumps(snapshot(session.design, *args))
+
+    session.interp.register("mockLayoutSnapshot", layout_snapshot)
     session.interp.register("mockCapabilities", capabilities)
     session.interp.register("mockInspectCell", inspect_cell)

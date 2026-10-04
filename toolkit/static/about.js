@@ -801,6 +801,20 @@
   pairs.push(['여러 신호 함께','Multiple signals'],['표시할 신호','Signals to display'],['확대 +','Zoom in +'],['축소 −','Zoom out −'],['전체 보기','Fit all'],['시간축 이동','Pan axis'],['측정 커서','Measurement cursor'],['신호별 마지막 값','Last value by signal']);
   pairs.push(['레이아웃 셀','Layout cell']);
   pairs.push(
+    ['선택 셀 검증','Verify selected cell'], ['현재 셀 검사','Check current cell'],
+    ['레이어 매핑','Layer mapping'], ['mockTech · 교육용 형상 검사','mockTech · Educational geometry checks'],
+    ['SKY130 · 명시적 PDK 레이어 매핑 + 실제 DRC/LVS','SKY130 · Explicit PDK layer mapping + real DRC/LVS'],
+    ['DB와 하위 셀을 읽어 입력을 고정하고, GDS 내보내기 전후 형상을 비교합니다. 화면 렌더링 자체는 별도 확인이 필요합니다.','Snapshot the DB and its hierarchy, then compare geometry before and after GDS export. Canvas rendering requires a separate check.'],
+    ['SKY130 매핑은 현재 형상이 SKY130 공정 구조를 갖춘 경우에 선택하세요. mock via는 물리 via 구조로 자동 변환하지 않습니다.','Select SKY130 mapping for layouts built with SKY130 process structures. Mock vias are not converted into physical via structures.'],
+    ['기준 SPICE','Reference SPICE'], ['SPICE 치수 단위','SPICE dimension units'],
+    ['Magic PEX·antenna 포함 (엔진과 PDK 설치 필요)','Include Magic PEX and antenna checks (engine and PDK required)'],
+    ['입력 또는 셀이 변경되었습니다. 재검사가 필요합니다.','The input or cell changed. Run verification again.'],
+    ['검사한 GDS 저장','Download checked GDS'], ['보고서 JSON 저장','Download report JSON'],
+    ['외부 검증 자료 ZIP','External verification evidence ZIP'], ['형상 · 연결 · 검증 상세','Geometry, connectivity and verification details'],
+    ['DB 읽기 · GDS 비교 · 선택한 검사를 실행 중입니다…','Reading DB, comparing GDS and running selected checks…'],
+    ['검사가 완료되었습니다. 각 검사 상태를 확인하세요.','Checks complete. Review each check status.']
+  );
+  pairs.push(
     ['DRC / LVS · 물리 검증','DRC / LVS · Physical verification'],
     ['DRC · 설계 규칙','DRC · Design rules'],
     ['LVS · 회로 일치','LVS · Circuit equivalence'],
@@ -879,7 +893,7 @@
   for(const pair of pairs)for(const value of pair)lookup.set(normalize(value),pair);
   let lang='ko';try{lang=localStorage.getItem('mv.lang')==='en'?'en':'ko';}catch{}
   const originals=new WeakMap(), attributes=new WeakMap();
-  const roots='body>header,#circuit-panel,#verification-panel,main h2,.layout-controls,.ask,.grip,.status,.empty,#lost,#tabs .tab:not([data-key])';
+  const roots='body>header,#circuit-panel,#verification-panel,#layout-check-panel,main h2,.layout-controls,.ask,.grip,.status,.empty,#lost,#tabs .tab:not([data-key])';
   const excluded='script,style,pre,code,svg,input,textarea,[data-no-translate],#circuit-values,#circuit-netlist,#circuit-log,#verify-detail,.ev,.mv-about-back';
   const formats=[
     [/^(통과|실패|실행 오류|미실행) · ((?:review|comparison)-[a-f0-9]+)$/,m=>`${({통과:'Passed',실패:'Failed','실행 오류':'Execution error',미실행:'Not run'})[m[1]]} · ${m[2]}`],

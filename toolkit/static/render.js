@@ -88,6 +88,12 @@ function drawShape(r, off, o, dim){
     ctx.globalAlpha=1; return true;
   }
   const b0=r.bbox; if(!b0){ctx.globalAlpha=1;return false;}
+  if(r.objType==='path'&&r.points?.length>=2&&r.width>0){
+    ctx.beginPath();
+    r.points.forEach((point,index)=>{const p=xf(point,off,o);if(index===0)ctx.moveTo(sx(p[0]),sy(p[1]));else ctx.lineTo(sx(p[0]),sy(p[1]));});
+    ctx.strokeStyle=L.c;ctx.lineWidth=r.width*view.s;ctx.lineCap='square';ctx.lineJoin='miter';ctx.stroke();
+    ctx.lineCap='butt';ctx.lineJoin='miter';ctx.globalAlpha=1;return true;
+  }
   if(r.objType==='polygon'&&r.points?.length>=3){
     ctx.beginPath();
     r.points.forEach((point,index)=>{const p=xf(point,off,o);if(index===0)ctx.moveTo(sx(p[0]),sy(p[1]));else ctx.lineTo(sx(p[0]),sy(p[1]));});
